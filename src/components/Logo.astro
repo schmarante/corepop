@@ -1,0 +1,14 @@
+---
+// Schriftzug „corepop“ im Candy-Look: „core“ und „pop“ zusammengeschrieben, aber in zwei Farben.
+// Aufbau pro Wortteil: Verlauf als Füllung (background-clip: text), Glanzlicht als ::after mit demselben Text,
+// Tiefe über gestapelte drop-shadows (die Versätze addieren sich zu einer „Extrusion“). Styles: global.css (.logo).
+// Schrift: Sour Gummy (nur hier verwendet – siehe global.css @font-face).
+interface Props {
+  class?: string;
+}
+const { class: className = 'text-7xl' } = Astro.props;
+---
+
+<span class:list={['logo', className]} aria-label="corepop" role="img">
+  <span class="logo-part logo-core" data-text="core" aria-hidden="true">core</span><span class="logo-part logo-pop" data-text="pop" aria-hidden="true">pop</span>
+</span>

@@ -1,0 +1,71 @@
+---
+// Startseite: Titel, Kurzerklärung, „Spielen“ (weiter beim höchsten freigeschalteten Level) und Level-Auswahl.
+import { useTranslations, localePath } from '../i18n/index.js';
+import { LEVELS } from '../scripts/core/levels.js';
+import { LOCK_ICON } from '../scripts/ui/icons.js';
+import OptionsButton from './OptionsButton.astro';
+import Logo from './Logo.astro';
+
+interface Props {
+  locale: string;
+}
+const { locale } = Astro.props;
+const t = useTranslations(locale);
+const play = localePath(locale, 'play');
+---
+
+<div class="mx-auto flex min-h-dvh max-w-xl flex-col px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+  <header class="flex items-center justify-end py-2">
+    <OptionsButton locale={locale} />
+  </header>
+
+  <main class="flex flex-1 flex-col justify-center gap-8 py-6">
+    <div class="flex flex-col items-center gap-3 text-center">
+      <h1 class="mb-2"><Logo class="text-[clamp(4rem,20vw,9rem)]" /></h1>
+      <p class="text-2xl font-extrabold leading-tight">{t('home.claim')}</p>
+      <p class="text-muted">{t('home.intro')}</p>
+    </div>
+
+    <a href={`${play}?level=1`} data-continue data-label={t('home.continue')}
+       class="reveal candy rounded-2xl px-6 py-4 text-center text-xl font-extrabold">
+      {t('home.play')}
+    </a>
+
+    {/* Level-Auswahl erst, wenn es mehrere Level gibt */}
+    <section class:list={['flex flex-col gap-3', LEVELS.length < 2 && 'hidden']}>
+      <h2 class="text-sm font-bold uppercase tracking-wide text-muted">{t('home.levels')}</h2>
+      <ol data-levels class="reveal grid grid-cols-3 gap-3">
+        {LEVELS.map((_, i) => (
+          <li>
+            <a href={`${play}?level=${i + 1}`} data-level={i}
+               class="candy flex aspect-square items-center justify-center rounded-2xl text-3xl font-black [--c:var(--color-accent-2)] aria-disabled:pointer-events-none aria-disabled:opacity-50">
+              <span data-number>{i + 1}</span>
+              <span data-lock hidden aria-label={t('home.locked')}><Fragment set:html={LOCK_ICON} /></span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  </main>
+</div>
+
+<script>
+  // Freigeschaltete Level stehen nur auf diesem Gerät (localStorage) – deshalb hier im Browser markieren
+  import { unlockedLevel } from '../scripts/store/progress.js';
+
+  const unlocked = unlockedLevel();
+  document.querySelectorAll<HTMLAnchorElement>('[data-level]').forEach(link => {
+    const locked = Number(link.dataset.level) > unlocked;
+    if (locked) {
+      link.setAttribute('aria-disabled', 'true');
+      link.tabIndex = -1;
+    }
+    link.querySelector<HTMLElement>('[data-number]')!.hidden = locked;
+    link.querySelector<HTMLElement>('[data-lock]')!.hidden = !locked;
+  });
+  const play = document.querySelector<HTMLAnchorElement>('[data-continue]')!;
+  play.search = `?level=${unlocked + 1}`;
+  if (unlocked > 0) play.textContent = play.dataset.label!.replace('{n}', String(unlocked + 1));
+  // erst jetzt zeigen – sonst springen Schloss-Symbole und Button-Text nach dem ersten Bild um
+  for (const el of document.querySelectorAll('.reveal')) el.classList.add('is-ready');
+</script>

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "title": "corepop – Farb-Puzzle mit Raumschiffen",
+    "description": "Schick deine Raumschiffe los und zerlege Figuren aus bunten Blöcken Schicht für Schicht – jedes Schiff trifft nur seine eigene Farbe."
+  },
+  "nav": {
+    "home": "Zur Startseite"
+  },
+  "home": {
+    "claim": "Knack den Kern – Farbe für Farbe.",
+    "intro": "Tippe Raumschiffe an, damit sie in den Hangar fliegen. Jedes Schiff schießt nur auf Blöcke seiner Farbe. Plane gut: Der Hangar hat nur wenige Plätze.",
+    "play": "Spielen",
+    "continue": "Weiter mit Level {n}",
+    "levels": "Level",
+    "locked": "Noch gesperrt"
+  },
+  "game": {
+    "level": "Level {n}",
+    "progress": "Fortschritt",
+    "hint": "Tippe ein Schiff an. Es schießt nur auf Blöcke seiner Farbe. Wischen dreht die Figur.",
+    "queue": "Warteschlange der Schiffe",
+    "ship": "Schiff in {color}, {count} Schuss",
+    "waiting": "Wartet: {color}, {count} Schuss",
+    "more": "+{count}",
+    "hangarFull": "Der Hangar ist voll.",
+    "won": "Gepoppt!",
+    "allDone": "Alle Level geschafft! 🚀",
+    "lost": "Hangar blockiert!",
+    "lostText": "Kein Schiff im Hangar findet noch ein Ziel seiner Farbe.",
+    "next": "Nächstes Level",
+    "again": "Nochmal",
+    "fromStart": "Von vorn",
+    "noWebgl": "Dein Browser kann leider keine 3D-Grafik anzeigen.",
+    "breakOff": "Volltreffer! Bruchstück abgesprengt",
+    "skipped": {
+      "one": "+{count} Schiff übersprungen",
+      "other": "+{count} Schiffe übersprungen"
+    },
+    "bomber": "Spreng-Flieger, 1 Bombe",
+    "bomberWaiting": "Wartet: Spreng-Flieger"
+  },
+  "colors": {
+    "w": "Silber",
+    "n": "Schwarz",
+    "h": "Rosa",
+    "e": "Dunkelgrün",
+    "l": "Hellgrün",
+    "u": "Braun",
+    "c": "Creme",
+    "r": "Rot",
+    "o": "Orange",
+    "y": "Gelb",
+    "g": "Grün",
+    "b": "Blau",
+    "p": "Lila",
+    "x": "Spreng-Magenta"
+  },
+  "options": {
+    "title": "Optionen",
+    "language": "Sprache",
+    "close": "Schließen"
+  },
+  "about": {
+    "title": "Über corepop",
+    "intro": "corepop ist ein Farb-Puzzle: Deine Raumschiffe tragen Figuren aus Blöcken Schicht für Schicht ab. Jedes Schiff trifft nur seine eigene Farbe.",
+    "privacy": "Keine Anmeldung, keine Werbung. Dein Spielstand bleibt nur auf deinem Gerät.",
+    "openSource": "corepop ist mit tollen Open-Source-Projekten gebaut. Danke an alle, die daran mitarbeiten!",
+    "runtime": "Im Spiel",
+    "assets": "Schrift",
+    "build": "Zum Bauen",
+    "libs": {
+      "three": "3D-Darstellung",
+      "sour-gummy": "Schrift des Logos",
+      "astro": "Erzeugt die Seiten",
+      "tailwindcss": "Gestaltung (CSS)",
+      "vitest": "Automatische Tests der Spiellogik"
+    }
+  }
+}

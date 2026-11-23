@@ -1,0 +1,22 @@
+{
+  "name": "corepop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "corepop – Raumschiffe zerlegen einen rotierenden Voxel-Asteroiden, Farbe für Farbe",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "astro": "^7.4.12",
+    "tailwindcss": "^4.3.5",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.1"
+  }
+}

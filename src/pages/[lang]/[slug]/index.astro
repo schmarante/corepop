@@ -1,0 +1,15 @@
+---
+// Jede Seite in jeder Sprache außer Deutsch, unter ihrem übersetzten Slug (/en/play/ …)
+import Base from '../../../layouts/Base.astro';
+import SoloGame from '../../../components/SoloGame.astro';
+import { useTranslations, otherLocalePagePaths } from '../../../i18n/index.js';
+
+export const getStaticPaths = otherLocalePagePaths;
+const { lang } = Astro.params;
+const { page } = Astro.props as { page: 'play' };
+const t = useTranslations(lang);
+---
+
+<Base locale={lang} page={page} title={t('home.play')} fullscreen>
+  {page === 'play' && <SoloGame locale={lang} />}
+</Base>

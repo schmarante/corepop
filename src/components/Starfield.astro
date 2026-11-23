@@ -1,0 +1,11 @@
+---
+// Vollflächiger Sternenflug hinter allen Seiten (src/scripts/render/starfield.js).
+---
+
+<canvas data-starfield aria-hidden="true" class="fade-in pointer-events-none fixed inset-0 -z-10 h-full w-full"></canvas>
+
+<script>
+  import { startStarfield } from '../scripts/render/starfield.js';
+
+  startStarfield(document.querySelector<HTMLCanvasElement>('[data-starfield]')!);
+</script>

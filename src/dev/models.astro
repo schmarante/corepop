@@ -1,0 +1,113 @@
+---
+// Dev-Übersicht: alle Modelle (Figuren) auf einen Blick – 3D-Vorschau, Kennzahlen, Level-Zuordnung, Schnitt durch den
+// Kern. Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs → devPages). Bewusst nur Deutsch.
+import '../styles/global.css';
+import Starfield from '../components/Starfield.astro';
+import Logo from '../components/Logo.astro';
+import { modelCatalog, modelStats } from '../scripts/dev/model-catalog.js';
+import { cssColor } from '../scripts/core/colors.js';
+import de from '../i18n/de.json';
+
+const entries = modelCatalog().map(entry => ({ ...entry, stats: modelStats(entry.level) }));
+const colorName = (id: string) => (de.colors as Record<string, string>)[id] ?? id;
+const swatches = (counts: Record<string, number>) => Object.entries(counts).sort((a, b) => b[1] - a[1]);
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Modelle · corepop dev</title>
+  </head>
+  <body class="min-h-dvh text-text antialiased">
+    <Starfield />
+    <main class="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6">
+      <header class="flex flex-wrap items-end justify-between gap-4">
+        <div class="flex flex-col gap-1">
+          <Logo class="text-5xl" />
+          <h1 class="text-2xl font-extrabold">Modelle <span class="text-base font-bold text-muted">· Dev-Übersicht</span></h1>
+          <p class="text-sm text-muted">
+            Figuren aus <code>src/scripts/core/models/</code> mit der Einstellung ihres Levels (sonst Vorschau-Standard).
+            Ziehen dreht. Neue Figur: Datei anlegen und in <code>models/index.js</code> eintragen – sie erscheint hier automatisch.
+          </p>
+        </div>
+        <div class="flex gap-3">
+          <button type="button" data-toggle-cut aria-pressed="false" class="candy rounded-2xl px-4 py-2.5 font-extrabold [--c:var(--color-accent-2)]">Schnitt: aus</button>
+          <button type="button" data-toggle-spin aria-pressed="true" class="candy rounded-2xl px-4 py-2.5 font-extrabold">Drehung: an</button>
+        </div>
+      </header>
+
+      <ul class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        {entries.map(({ id, levelIndex, level, stats }) => (
+          <li class="flex flex-col overflow-hidden rounded-3xl border-2 border-line bg-surface/80 backdrop-blur">
+            <div class="relative aspect-square">
+              <canvas data-preview={JSON.stringify(level)} class="fade-in absolute inset-0 h-full w-full cursor-grab active:cursor-grabbing"></canvas>
+              <span class:list={['absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-extrabold', levelIndex === null ? 'bg-line text-muted' : 'bg-accent text-on-accent']}>
+                {levelIndex === null ? 'in keinem Level' : `Level ${levelIndex + 1}${level.boss ? ' · Boss' : ''}`}
+              </span>
+            </div>
+            <div class="flex flex-col gap-3 p-4 text-sm">
+              <h2 class="font-logo text-3xl font-black">{id}</h2>
+              <dl class="grid grid-cols-4 gap-2 text-center">
+                <div class="rounded-2xl bg-black/25 p-2"><dt class="text-xs text-muted">Würfel</dt><dd class="text-lg font-extrabold tabular-nums">{stats.total}</dd></div>
+                <div class="rounded-2xl bg-black/25 p-2"><dt class="text-xs text-muted">Ø Würfel</dt><dd class="text-lg font-extrabold tabular-nums">{stats.diameter}</dd></div>
+                <div class="rounded-2xl bg-black/25 p-2"><dt class="text-xs text-muted">Schiffe</dt><dd class="text-lg font-extrabold tabular-nums">{stats.ships}</dd></div>
+                <div class="rounded-2xl bg-black/25 p-2"><dt class="text-xs text-muted">Kristalle</dt><dd class="text-lg font-extrabold tabular-nums">{stats.crystals}</dd></div>
+              </dl>
+              <div class="flex flex-col gap-1.5">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-muted">Haut</h3>
+                <ul class="flex flex-wrap gap-1.5">
+                  {swatches(stats.skin).map(([color, n]) => (
+                    <li class="flex items-center gap-1.5 rounded-full bg-black/25 py-1 pr-2.5 pl-1">
+                      <span class="h-4 w-4 rounded-full" style={`background:${cssColor(color)}`}></span>{colorName(color)} <span class="text-muted tabular-nums">{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <h3 class="text-xs font-bold uppercase tracking-wide text-muted">Kern (außen → innen)</h3>
+                <ol class="flex flex-col gap-1">
+                  {stats.core.map((layer, k) => (
+                    <li class="flex flex-wrap items-center gap-1.5">
+                      <span class="w-5 text-xs text-muted">{k + 1}.</span>
+                      {swatches(layer).map(([color, n]) => (
+                        <span class="flex items-center gap-1.5 rounded-full bg-black/25 py-1 pr-2.5 pl-1">
+                          <span class="h-4 w-4 rounded-full" style={`background:${cssColor(color)}`}></span>{colorName(color)} <span class="text-muted tabular-nums">{n}</span>
+                        </span>
+                      ))}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <p class="text-xs text-muted">
+                Radius {level.radius} · Haut {level.skin ?? 1} · Drehung {level.spin ?? '–'} rad/s · Schiffe {Object.entries(level.ships ?? {}).map(([c, w]) => `${c}×${w}`).join(' ') || 'Standard'} ·
+                Seed <code>{level.seed}</code>{Object.keys(level.model).length > 1 && <> · {JSON.stringify(level.model)}</>}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </main>
+
+    <script>
+      import { startModelPreview } from '../scripts/dev/model-preview.js';
+
+      const previews = [...document.querySelectorAll<HTMLCanvasElement>('[data-preview]')].map(canvas =>
+        startModelPreview(canvas, JSON.parse(canvas.dataset.preview!)),
+      );
+      const toggle = (selector: string, label: string, apply: (on: boolean) => void) => {
+        const button = document.querySelector<HTMLButtonElement>(selector)!;
+        button.addEventListener('click', () => {
+          const on = button.getAttribute('aria-pressed') !== 'true';
+          button.setAttribute('aria-pressed', String(on));
+          button.textContent = `${label}: ${on ? 'an' : 'aus'}`;
+          apply(on);
+        });
+      };
+      toggle('[data-toggle-cut]', 'Schnitt', on => previews.forEach(p => p.setCut(on)));
+      toggle('[data-toggle-spin]', 'Drehung', on => previews.forEach(p => p.setSpinning(on)));
+    </script>
+  </body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "title": "corepop – a colour puzzle with spaceships",
+    "description": "Launch your spaceships and take figures made of colourful blocks apart layer by layer – every ship only hits its own colour."
+  },
+  "nav": {
+    "home": "To the start page"
+  },
+  "home": {
+    "claim": "Crack the core – colour by colour.",
+    "intro": "Tap spaceships to send them into the hangar. Each ship only shoots blocks of its own colour. Plan ahead: the hangar has only a few bays.",
+    "play": "Play",
+    "continue": "Continue with level {n}",
+    "levels": "Levels",
+    "locked": "Locked"
+  },
+  "game": {
+    "level": "Level {n}",
+    "progress": "Progress",
+    "hint": "Tap a ship. It only shoots blocks of its own colour. Swipe to turn the figure.",
+    "queue": "Ship queue",
+    "ship": "{color} ship, {count} shots",
+    "waiting": "Waiting: {color}, {count} shots",
+    "more": "+{count}",
+    "hangarFull": "The hangar is full.",
+    "won": "Popped!",
+    "allDone": "All levels done! 🚀",
+    "lost": "Hangar jammed!",
+    "lostText": "No ship in the hangar can find a target of its colour.",
+    "next": "Next level",
+    "again": "Try again",
+    "fromStart": "Start over",
+    "noWebgl": "Sorry, your browser cannot show 3D graphics.",
+    "breakOff": "Direct hit! Chunk blasted off",
+    "skipped": {
+      "one": "+{count} ship skipped",
+      "other": "+{count} ships skipped"
+    },
+    "bomber": "Blast bomber, 1 bomb",
+    "bomberWaiting": "Waiting: blast bomber"
+  },
+  "colors": {
+    "w": "Silver",
+    "n": "Black",
+    "h": "Pink",
+    "e": "Dark green",
+    "l": "Light green",
+    "u": "Brown",
+    "c": "Cream",
+    "r": "Red",
+    "o": "Orange",
+    "y": "Yellow",
+    "g": "Green",
+    "b": "Blue",
+    "p": "Purple",
+    "x": "Blast magenta"
+  },
+  "options": {
+    "title": "Options",
+    "language": "Language",
+    "close": "Close"
+  },
+  "about": {
+    "title": "About corepop",
+    "intro": "corepop is a colour puzzle: your spaceships take block figures apart layer by layer. Every ship only hits its own colour.",
+    "privacy": "No sign-up, no ads. Your progress stays on your device only.",
+    "openSource": "corepop is built with great open-source projects. Thanks to everyone who contributes to them!",
+    "runtime": "In the game",
+    "assets": "Font",
+    "build": "For building",
+    "libs": {
+      "three": "3D rendering",
+      "sour-gummy": "Logo font",
+      "astro": "Generates the pages",
+      "tailwindcss": "Styling (CSS)",
+      "vitest": "Automated tests of the game logic"
+    }
+  }
+}

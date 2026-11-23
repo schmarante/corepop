@@ -1,0 +1,77 @@
+---
+// Grundgerüst jeder Seite: <head> (Meta, Sprach-Weiterleitung vor dem ersten Paint) und <body>.
+// Kopfzeilen bringen die Seiten selbst mit – das Spiel braucht den ganzen Bildschirm.
+import '../styles/global.css';
+import { useTranslations, localePath, LANGUAGES, DEFAULT_LOCALE, LANG_STORAGE_KEY } from '../i18n/index.js';
+import Starfield from '../components/Starfield.astro';
+import OptionsDialog from '../components/OptionsDialog.astro';
+
+interface Props {
+  locale: string;
+  page: '' | 'play';   // Seiten-Id – der URL-Slug ist übersetzt (SLUGS)
+  title?: string;
+  /** Vollbild ohne Scrollen (Spiel) */
+  fullscreen?: boolean;
+}
+const { locale, page, title, fullscreen = false } = Astro.props;
+const t = useTranslations(locale);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<!doctype html>
+<html lang={locale} translate="no">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#05060d" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="google" content="notranslate" />
+    <title>{title ? `${title} · corepop` : t('meta.title')}</title>
+    <meta name="description" content={t('meta.description')} />
+    <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    {LANGUAGES.map(({ code }) => <link rel="alternate" hreflang={code} href={localePath(code, page)} />)}
+    {/* Sprache: ?lang=… > gespeicherte Wahl (Sprachmenü) > Browsersprachen > Deutsch. Die Sprache steckt in der URL
+         (/en/…): ?lang= wirkt auf jeder Seite, der Rest nur auf deutschen (präfixlosen) Seiten – ein geteilter
+         /en/-Link öffnet immer Englisch. Läuft vor dem ersten Paint. */}
+    <script is:inline define:vars={{ codes: LANGUAGES.map(l => l.code), fallback: DEFAULT_LOCALE, current: locale, storageKey: LANG_STORAGE_KEY,
+                                      paths: Object.fromEntries(LANGUAGES.map(l => [l.code, localePath(l.code, page)])) }}>
+      try {
+        const match = value => {
+          const code = String(value || '').trim().toLowerCase().split(/[-_;]/)[0];
+          return codes.includes(code) ? code : undefined;
+        };
+        const params = new URLSearchParams(location.search);
+        const query = match(params.get('lang'));
+        let stored = null;
+        try { stored = localStorage.getItem(storageKey); } catch {}
+        const wanted = query
+          ?? (current === fallback ? match(stored) ?? (navigator.languages || [navigator.language]).map(match).find(Boolean) : undefined)
+          ?? current;
+        if (wanted !== current) {
+          params.delete('lang');
+          const search = params.toString() ? `?${params}` : '';
+          location.replace(`${paths[wanted]}${search}${location.hash}`);
+        }
+      } catch {}
+    </script>
+  </head>
+  <body class:list={['text-text antialiased', fullscreen ? 'h-dvh overflow-hidden overscroll-none' : 'min-h-dvh']} data-page={page}>
+    <Starfield />
+    <slot />
+    <OptionsDialog locale={locale} page={page} />
+    <script>
+      import { LANG_STORAGE_KEY } from '../i18n/index.js';
+      // eine in den Optionen gewählte Sprache gewinnt ab jetzt gegen die Browsersprache (Skript im <head>)
+      document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach(link =>
+        link.addEventListener('click', () => {
+          try {
+            localStorage.setItem(LANG_STORAGE_KEY, link.dataset.lang!);
+          } catch {
+            /* nicht gespeichert */
+          }
+        }),
+      );
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+---
+import Base from '../../layouts/Base.astro';
+import SoloGame from '../../components/SoloGame.astro';
+import { useTranslations } from '../../i18n/index.js';
+---
+
+<Base locale="de" page="play" title={useTranslations('de')('home.play')} fullscreen>
+  <SoloGame locale="de" />
+</Base>

@@ -1,0 +1,14 @@
+---
+// Zahnrad: öffnet den Optionen-Dialog (components/OptionsDialog.astro, steckt in jeder Seite über Base.astro).
+import { useTranslations } from '../i18n/index.js';
+import { GEAR_ICON } from '../scripts/ui/icons.js';
+
+interface Props {
+  locale: string;
+}
+const t = useTranslations(Astro.props.locale);
+---
+
+<button type="button" data-options-open class="icon-button" aria-label={t('options.title')} title={t('options.title')}>
+  <Fragment set:html={GEAR_ICON} />
+</button>

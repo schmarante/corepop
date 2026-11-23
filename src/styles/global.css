@@ -1,0 +1,287 @@
+@import "tailwindcss";
+
+/* Logo-Schrift: Sour Gummy (SIL Open Font License), lokal eingebunden – nur für den Schriftzug (components/Logo.astro) */
+@font-face {
+  font-family: "Sour Gummy";
+  font-weight: 900;
+  font-display: swap;
+  src: url("../fonts/sour-gummy-v3-latin-900.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Sour Gummy";
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/sour-gummy-v3-latin-regular.woff2") format("woff2");
+}
+
+/* Farben als Tokens – Weltraum, deshalb nur ein dunkles Design. Text in Systemschriften, nur das Logo hat eine eigene (lokale) Schrift. */
+@theme {
+  --color-bg: #05060d;
+  --color-surface: #11142a;
+  --color-line: #262b4d;
+  --color-text: #f1f3ff;
+  --color-muted: #9aa2c8;
+  --color-accent: #4da6ff;
+  --color-accent-2: #b36bff;
+  --color-on-accent: #ffffff;
+  --font-logo: "Sour Gummy", ui-rounded, system-ui, sans-serif;
+  --font-sans: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html {
+  color-scheme: dark;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Klick-Feedback */
+.press {
+  transition: transform 120ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+.press:active {
+  transform: scale(0.96);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Schiffe in der Warteschlange (ui/queue.js): Candy-Kacheln in der Schiffsfarbe (--c), wartende kleiner und gedämpft */
+@layer components {
+  .ship {
+    @apply flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl text-[13px] font-extrabold;
+  }
+  .ship.is-waiting {
+    @apply scale-[.82] opacity-60;
+  }
+  /* vorne ↔ wartend weich überblenden (Größe, Helligkeit); transform/box-shadow bleiben kurz fürs Drücken */
+  .ship.candy {
+    transition: transform 90ms ease, box-shadow 90ms ease, filter 220ms ease, scale 220ms ease, opacity 220ms ease;
+  }
+}
+
+/* Logo (components/Logo.astro): zwei Candy-Farben, Glanzlicht, Extrusion. --top/--bottom = Verlauf, --depth = Seite */
+.logo {
+  display: inline-flex;
+  font-family: var(--font-logo);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  padding: 0.05em 0.1em 0.2em 0.04em;   /* Platz für Tiefe und Schatten */
+}
+.logo-part {
+  position: relative;
+  /* enge Laufweite: der letzte Buchstabe ragt über die Box hinaus – Polster, damit Verlauf und Glanz ihn ganz füllen */
+  padding-right: 0.1em;
+  margin-right: -0.1em;
+  color: transparent;
+  background: linear-gradient(to bottom, var(--top) 15%, var(--bottom) 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0.02em 0 var(--depth)) drop-shadow(0 0.02em 0 var(--depth)) drop-shadow(0 0.025em 0 var(--depth))
+    drop-shadow(0 0.1em 0.12em rgb(0 0 0 / 0.4));
+}
+/* Glanzlicht: derselbe Text, oben weiß, nach der Hälfte durchsichtig */
+.logo-part::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.75) 8%, rgb(255 255 255 / 0.15) 40%, transparent 46%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  pointer-events: none;
+}
+.logo-core {
+  --top: #8be0ff;
+  --bottom: #2f86ff;
+  --depth: #1747a6;
+}
+.logo-pop {
+  --top: #ffa3d6;
+  --bottom: #ff3d8b;
+  --depth: #a8124f;
+}
+
+/* Candy-Buttons: einfarbig im Logo-Look – Verlauf, Glanzlicht oben, 3D-Kante unten, drückt sich beim Antippen ein.
+   --c = Grundfarbe (Standard: Akzent). Helle/dunkle Töne werden per color-mix daraus abgeleitet. */
+@layer components {
+  .candy {
+    --c: var(--color-accent);
+    --edge: color-mix(in oklab, var(--c), black 38%);
+    position: relative;
+    color: #fff;
+    text-shadow: 0 2px 0 var(--edge);
+    background:
+      linear-gradient(to bottom, rgb(255 255 255 / 0.45) 0%, rgb(255 255 255 / 0.08) 42%, transparent 48%),
+      linear-gradient(to bottom, color-mix(in oklab, var(--c), white 28%), var(--c) 75%);
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.35),
+      inset 0 -3px 0 color-mix(in oklab, var(--c), black 15%),
+      0 6px 0 var(--edge),
+      0 10px 18px rgb(0 0 0 / 0.45);
+    transition: transform 90ms ease, box-shadow 90ms ease, filter 160ms ease;
+  }
+  .candy:hover {
+    filter: brightness(1.06);
+  }
+  .candy:active,
+  .candy.is-pressed {
+    transform: translateY(4px);
+    box-shadow:
+      inset 0 2px 0 rgb(255 255 255 / 0.35),
+      inset 0 -3px 0 color-mix(in oklab, var(--c), black 15%),
+      0 2px 0 var(--edge),
+      0 4px 8px rgb(0 0 0 / 0.45);
+  }
+  /* nicht antippbar (gesperrtes Level, wartendes Schiff): flach und gedämpft */
+  .candy[aria-disabled="true"],
+  .candy:disabled,
+  .candy.is-waiting {
+    filter: saturate(0.55) brightness(0.7);
+    box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.2), 0 3px 0 var(--edge);
+  }
+}
+
+/* Runde Icon-Buttons in Kopfzeilen (Zurück, Optionen, Schließen) – bewusst flach, damit die Candy-Buttons
+   die Aufmerksamkeit bekommen */
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  color: var(--color-muted);
+  transition: color 160ms ease, background-color 160ms ease, transform 120ms ease;
+}
+.icon-button:hover {
+  color: var(--color-text);
+  background: var(--color-line);
+}
+.icon-button:active {
+  transform: scale(0.92);
+}
+
+/* Candy-Fortschrittsbalken: eingelassene Rinne, darin ein glänzender Verlauf (Logo-Farben) */
+.candy-track {
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.35);
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.5), 0 1px 0 rgb(255 255 255 / 0.08);
+  padding: 3px;
+}
+.candy-fill {
+  height: 100%;
+  width: 0;
+  min-width: 0.875rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.1) 45%, transparent 50%),
+    linear-gradient(to right, #4da6ff, #b36bff 60%, #ff3d8b);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.2);
+  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Meldung über der Bühne (ui/toast.js) */
+.toast {
+  opacity: 0;
+  transform: translateY(8px) scale(0.95);
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+.toast.toast-in {
+  opacity: 1;
+  transform: none;
+}
+
+.shake {
+  animation: shake 300ms;
+}
+@keyframes shake {
+  0%, 100% { translate: 0; }
+  25% { translate: -6px; }
+  75% { translate: 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+/* 3D-Bühne: kein Markieren / Kontextmenü bei langem Drücken, Wischen gehört dem Spiel */
+canvas {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+/* Canvas (Bühne, Sternenflug): unsichtbar bis das erste Bild steht, dann weich einblenden */
+canvas.fade-in {
+  opacity: 0;
+  transition: opacity 600ms ease-out;
+}
+canvas.fade-in.is-ready {
+  opacity: 1;
+}
+
+/* Dialoge blenden ein und aus (auch das Schließen: overlay/display mit allow-discrete) */
+dialog {
+  opacity: 0;
+  scale: 0.92;
+  transition: opacity 220ms ease, scale 220ms ease, overlay 220ms allow-discrete, display 220ms allow-discrete;
+}
+dialog[open] {
+  opacity: 1;
+  scale: 1;
+}
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+dialog::backdrop {
+  background: rgb(5 6 13 / 0);
+  transition: background-color 220ms ease, overlay 220ms allow-discrete, display 220ms allow-discrete;
+}
+dialog[open]::backdrop {
+  background: rgb(5 6 13 / 0.8);
+}
+@starting-style {
+  dialog[open]::backdrop {
+    background: rgb(5 6 13 / 0);
+  }
+}
+
+/* Seitenwechsel: weich überblenden (Chrome, Safari; andere Browser wechseln wie bisher) */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+/* der Sternenflug läuft auf beiden Seiten weiter – nicht mit überblenden */
+[data-starfield] {
+  view-transition-name: starfield;
+}
+::view-transition-group(starfield),
+::view-transition-old(starfield),
+::view-transition-new(starfield) {
+  animation: none;
+}
+
+/* Inhalte, die erst ein Skript fertig macht (z. B. gesperrte Level): einblenden, sobald fertig */
+.reveal {
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+.reveal.is-ready {
+  opacity: 1;
+}
