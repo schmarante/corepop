@@ -298,9 +298,10 @@ export function startSolo(root, locale) {
       old.belt.dispose();
       return false;
     });
-    if (!game || options?.open) return;
+    if (!game || options?.open) return stage.glitch(null);
     views.asteroid.rotate(game.spin * dt);   // je weniger übrig, desto langsamer (core/game.js → spin)
     views.asteroid.update(dt);
+    stage.glitch(views.asteroid.glitchState());   // Boss: Farbgeister als Pixel-Shader (stage.js)
     handle(game.step(dt, views.asteroid.cameraInGrid(stage.camera), shipInGrid));
     views.hangar.update(game.slots, dt);
     views.belt.update(game.belt, game.queue.length, game.state === 'play' ? game.beltSpeed : 0, dt, {

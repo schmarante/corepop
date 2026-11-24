@@ -28,6 +28,104 @@ const SHADOW_MAP = 1024;       // Auflösung des Sonnenschattens (Figur füllt i
 const SUN_DIRECTION = new THREE.Vector3(6, 10, 12).normalize();
 const SHAKE_DECAY = 3.5;      // 1/s – wie schnell das Wackeln abklingt
 const SHAKE_AMOUNT = 0.35;    // Welteinheiten bei voller Stärke
+// Glitch-Geister (Boss): Farben wie früher die Geister-Meshes (sRGB, direkt aufs Bild addiert)
+const GLITCH_COLORS = [[1, 0.169, 0.839], [0.169, 0.839, 1]];
+
+/**
+ * Glitch als Pixel-Shader: Das fertige Bild wird in eine Textur kopiert, ein Vollbild-Dreieck legt seine Silhouette
+ * (Alpha) zweimal seitlich versetzt in Magenta und Türkis additiv darüber – nur in einem Kreis um die Figur.
+ * Läuft nur in Glitch-Bildern (≈ 0,22 s alle 1–2 s im Boss); kostet keine zusätzliche Geometrie.
+ */
+function createGlitchPass(renderer) {
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      frame: { value: null },
+      shiftA: { value: 0 },
+      shiftB: { value: 0 },
+      center: { value: new THREE.Vector2() },
+      radius: { value: 0 },
+      aspect: { value: 1 },
+      opacity: { value: 0 },
+      colorA: { value: new THREE.Vector3(...GLITCH_COLORS[0]) },
+      colorB: { value: new THREE.Vector3(...GLITCH_COLORS[1]) },
+    },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D frame;
+      uniform float shiftA, shiftB, radius, aspect, opacity;
+      uniform vec2 center;
+      uniform vec3 colorA, colorB;
+      varying vec2 vUv;
+      void main() {
+        vec2 d = (vUv - center) * vec2(aspect, 1.0);
+        float mask = 1.0 - smoothstep(radius * 0.95, radius * 1.2, length(d));
+        float a = texture2D(frame, vUv - vec2(shiftA, 0.0)).a;
+        float b = texture2D(frame, vUv - vec2(shiftB, 0.0)).a;
+        float k = opacity * mask;
+        gl_FragColor = vec4((colorA * a + colorB * b) * k, max(a, b) * k);
+      }`,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneFactor,
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+    toneMapped: false,
+  });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  quad.frustumCulled = false;
+  scene.add(quad);
+  const size = new THREE.Vector2();
+  const p0 = new THREE.Vector3();
+  const p1 = new THREE.Vector3();
+  let texture = null;
+
+  return {
+    /** über das gerade gezeichnete Bild legen; state = asteroidView.glitchState() */
+    draw(state, sceneCamera) {
+      renderer.getDrawingBufferSize(size);
+      if (!texture || texture.image.width !== size.x || texture.image.height !== size.y) {
+        texture?.dispose();
+        texture = new THREE.FramebufferTexture(size.x, size.y);
+        material.uniforms.frame.value = texture;
+      }
+      renderer.copyFramebufferToTexture(texture);
+      // Weltmaße an der Figur → Bildanteile
+      p0.copy(state.center).project(sceneCamera);
+      const u = material.uniforms;
+      u.center.value.set(p0.x * 0.5 + 0.5, p0.y * 0.5 + 0.5);
+      p1.copy(state.center);
+      p1.y += state.radius;
+      p1.project(sceneCamera);
+      u.radius.value = Math.abs(p1.y - p0.y) * 0.5;
+      u.aspect.value = size.x / size.y;
+      const shift = k => {
+        p1.copy(state.center);
+        p1.x += state.offsets[k];
+        return (p1.project(sceneCamera).x - p0.x) * 0.5;
+      };
+      u.shiftA.value = shift(0);
+      u.shiftB.value = shift(1);
+      u.opacity.value = state.opacity;
+      const { autoClear } = renderer;
+      const { autoReset } = renderer.info;
+      renderer.autoClear = false;
+      renderer.info.autoReset = false;   // Zähler (Profiler) zeigen weiter die Szene
+      renderer.render(scene, camera);
+      renderer.autoClear = autoClear;
+      renderer.info.autoReset = autoReset;
+    },
+    dispose() {
+      texture?.dispose();
+      material.dispose();
+      quad.geometry.dispose();
+    },
+  };
+}
 
 /**
  * @param {HTMLCanvasElement} canvas  liegt in einem Container, der die Größe vorgibt
@@ -116,6 +214,8 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
 
   let loop = null;
   const frameHooks = new Set();
+  const glitchPass = createGlitchPass(renderer);
+  let glitchState = null;
   return {
     /** neu ausrichten, z. B. wenn sich die Höhe der Schiffsauswahl ändert */
     relayout: resize,
@@ -143,6 +243,10 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     warmUp() {
       renderer.compile(scene, camera);
     },
+    /** Glitch-Geister über das nächste Bild legen (asteroidView.glitchState(): Objekt oder null) */
+    glitch(state) {
+      glitchState = state;
+    },
     /** Rückruf nach jedem Bild mit Zeiten in ms ({ dt, update, render } – CPU-Seite) – für den Dev-Profiler;
      *  liefert eine Abmelde-Funktion */
     onFrame(fn) {
@@ -159,6 +263,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
         const k = shake * shake * SHAKE_AMOUNT;   // quadratisch: kleine Werte kaum spürbar, große deutlich
         camera.position.set(home.x + (Math.random() * 2 - 1) * k, home.y + (Math.random() * 2 - 1) * k, home.z);
         renderer.render(scene, camera);
+        if (glitchState) glitchPass.draw(glitchState, camera);
         if (frameHooks.size) {
           const t2 = performance.now();
           for (const fn of frameHooks) fn({ dt, update: t1 - t0, render: t2 - t1 });
@@ -171,6 +276,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
       loop?.stop();
       stopQuality();
       detachShips();
+      glitchPass.dispose();
       observer.disconnect();
       environment.dispose();
       renderer.dispose();

@@ -101,7 +101,6 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   const slotOf = new Int32Array(total).fill(-1);
   const voxelAt = new Int32Array(total);
   let ao = null;
-  let ghosts = [];   // Glitch-Geister (Boss), teilen sich die Instanz-Lagen – siehe unten
   mesh.count = 0;
   mesh.setColorAt(0, color.set(0xffffff));   // legt instanceColor an
 
@@ -137,7 +136,6 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   const syncCount = () => {
     mesh.instanceMatrix.needsUpdate = true;
     mesh.instanceColor.needsUpdate = true;
-    for (const ghost of ghosts) ghost.count = mesh.count;
   };
 
   for (const v of asteroid.voxels) if (v.alive && !v.crystal && visibleFromOutside(asteroid, v)) shown[v.i] = 1;
@@ -151,29 +149,15 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   spin.add(mesh);
 
   // Glitch (Boss-Level): alle paar Sekunden zuckt die Figur kurz – springt ruckartig zur Seite, zwei Farbgeister
-  // (Magenta, Türkis) flackern versetzt auf. Die Geister teilen sich Geometrie und Würfel-Lagen mit der Figur
-  // (dieselbe instanceMatrix) und folgen ihrer Welt-Matrix mit einem Versatz quer zum Bild.
-  ghosts = glitch && !matchMedia('(prefers-reduced-motion: reduce)').matches
-    ? [0xff2bd6, 0x2bd6ff].map(color => {
-        const ghost = new THREE.InstancedMesh(mesh.geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), asteroid.voxels.length);
-        ghost.instanceMatrix = mesh.instanceMatrix;
-        ghost.count = mesh.count;
-        ghost.matrixAutoUpdate = false;
-        ghost.matrixWorldAutoUpdate = false;   // Welt-Matrix setzen wir selbst (Figur + Versatz)
-        ghost.name = 'Glitch-Geist';
-        ghost.frustumCulled = false;
-        ghost.visible = false;
-        ghost.renderOrder = 3;
-        scene.add(ghost);
-        return ghost;
-      })
-    : [];
+  // (Magenta, Türkis) flackern versetzt auf. Die Geister zeichnet die Bühne als Pixel-Shader über das fertige Bild
+  // (stage.glitch, liest `glitchState()`) – früher zwei weitere InstancedMeshes = Figur dreifach gezeichnet.
+  const glitchOn = glitch && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const glitchCenter = new THREE.Vector3();
   let nextGlitch = GLITCH_EVERY[0] + Math.random() * (GLITCH_EVERY[1] - GLITCH_EVERY[0]);
   let glitchT = -1;   // s seit Beginn des Zuckens (-1 = ruhig)
   let glitchStep = -1;
   const glitchOffsets = [0, 0];
   let glitchJump = 0;
-  const offsetMatrix = new THREE.Matrix4();
 
   /** Nachbarn (auch diagonal), die jetzt von außen sichtbar sind, ab sofort zeichnen */
   function revealAround(v) {
@@ -309,7 +293,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
       tilt.rotation.set(TILT + waves(TUMBLE_X, time) + wobble.x, 0, waves(TUMBLE_Z, time) + wobble.z);
       tilt.position.set(waves(SWAY_X, time), baseY + waves(SWAY_Y, time), 0);
       // Glitch: wenige ruckartige Schritte (je Schritt neue Versätze), dazwischen ruhig
-      if (ghosts.length && vanish === null) {
+      if (glitchOn && vanish === null) {
         if (glitchT < 0 && (nextGlitch -= dt) <= 0) glitchT = 0;
         if (glitchT >= 0) {
           glitchT += dt;
@@ -328,15 +312,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
             nextGlitch = GLITCH_EVERY[0] + Math.random() * (GLITCH_EVERY[1] - GLITCH_EVERY[0]);
           }
         }
-        const on = glitchT >= 0;
         tilt.position.x += glitchJump;
-        tilt.updateMatrixWorld(true);
-        ghosts.forEach((ghost, k) => {
-          ghost.visible = on;
-          if (!on) return;
-          ghost.matrixWorld.copy(offsetMatrix.makeTranslation(glitchOffsets[k], 0, 0)).multiply(spin.matrixWorld);
-          ghost.material.opacity = 0.16 + Math.random() * 0.14;   // flackert
-        });
       }
 
       if (dying.size) {
@@ -403,6 +379,18 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
         c.glowLevel += (want - c.glowLevel) * (1 - Math.exp(-GLOW_RATE * dt));
         c.glow.material.opacity = c.glowLevel * (0.25 + 0.75 * pulse);
       }
+    },
+    /** Glitch gerade aktiv? Dann { center (Welt), radius, offsets [magenta, türkis] (Welteinheiten quer zum Bild),
+     *  opacity } für stage.glitch – sonst null */
+    glitchState() {
+      if (glitchT < 0 || vanish !== null) return null;
+      tilt.updateMatrixWorld(true);
+      return {
+        center: spin.getWorldPosition(glitchCenter),
+        radius: (radius + 0.5) * size * tilt.scale.x,
+        offsets: glitchOffsets,
+        opacity: 0.16 + Math.random() * 0.14,   // flackert
+      };
     },
     /** Hülle des Körpers in Weltkoordinaten (Mittelpunkt + Radius) – Bruchstücke fliegen außen herum */
     bounds() {
@@ -552,10 +540,6 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
         glow.material.dispose();
       }
       scene.remove(tilt);
-      for (const ghost of ghosts) {
-        scene.remove(ghost);
-        ghost.material.dispose();
-      }
       mesh.geometry.dispose();
       mesh.material.dispose();
       mesh.dispose();

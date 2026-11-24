@@ -183,7 +183,11 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - **Boss-Level:** `solo.js` setzt `<html data-boss="1">` → Sternenflug blendet Plasma-Nebel (Magenta/Violett/Türkis)
   ein, Sterne glühen farbig mit Leuchtspur und fliegen schneller. Die Figur glitcht alle 3,5–8 s für 0,22 s
   (`GLITCH_*` in `asteroid-view.js`, Option `glitch`): springt ruckartig seitlich, zwei additive Farbgeister
-  (teilen `instanceMatrix` der Figur) flackern versetzt auf. Bei reduzierter Bewegung kein Glitch.
+  flackern versetzt auf – als **Pixel-Shader** über dem fertigen Bild (`createGlitchPass` in `stage.js`: Bild per
+  `copyFramebufferToTexture` kopieren, Silhouette/Alpha versetzt in Magenta/Türkis addieren, Kreis um die Figur; nur in
+  Glitch-Bildern, `asteroidView.glitchState()` → `stage.glitch`). Früher zwei Geister-Meshes = Figur dreifach.
+  Im Boss blendet jeder zweite Stern aus; Sterne werden erst ersetzt, wenn auch ihre Leuchtspur aus dem Bild ist.
+  Bei reduzierter Bewegung kein Glitch.
 - Logo „corepop“: `components/Logo.astro` + `.logo` in global.css (zwei Candy-Farben, Glanz, Extrusion per drop-shadow).
 - Alle Buttons im einfarbigen Candy-Look: Klasse `candy`, Farbe über `--c` (Standard Akzentblau), z. B.
   `class="candy [--c:var(--color-accent-2)]"` oder `style="--c:#ff4d5e"`. Nicht antippbar: `aria-disabled="true"`,
