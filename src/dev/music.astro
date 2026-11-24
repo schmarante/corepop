@@ -1,6 +1,6 @@
 ---
-// Dev-Seite: Musikstücke vorhören (audio/music.js) – rendern wie im Spiel (offline, nahtlose Schleife), abspielen,
-// Renderzeit und Spitzenpegel anzeigen. Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs →
+// Dev-Seite: Musikstücke vorhören (audio/music.js) – live gerendert oder aus den fertigen Dateien (public/audio/),
+// Renderzeit und Spitzenpegel anzeigen, als WAV exportieren (→ scripts/encode-music.sh → public/audio/*.mp3). Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs →
 // devPages). Bewusst nur Deutsch.
 import '../styles/global.css';
 import Starfield from '../components/Starfield.astro';
@@ -24,7 +24,8 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
       <header class="flex flex-col gap-1">
         <Logo class="text-5xl" />
         <h1 class="text-2xl font-extrabold">Musik <span class="text-base font-bold text-muted">· Vorhören</span></h1>
-        <p class="text-sm text-muted">Gerendert wie im Spiel (offline, Schleife). Das erste Abspielen rendert das Stück – dauert ein paar Sekunden.</p>
+        <p class="text-sm text-muted">„Live gerendert“ rechnet die Synths im Browser (dauert ein paar Sekunden) – so klingt die nächste Fassung. „Dateien“ spielt, was im Spiel läuft (public/audio/).</p>
+        <p class="text-sm text-muted">Neue Fassung veröffentlichen: „Alle exportieren“ (lädt WAVs herunter) → <code>scripts/encode-music.sh ~/Downloads</code> → <code>MUSIC_VERSION</code> in music.js erhöhen.</p>
       </header>
       <ul class="flex flex-col gap-3">
         {songs.map(song => (
@@ -34,19 +35,74 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
               <span class="text-sm text-muted">{song.bpm} bpm · {song.bars} Takte · {song.seconds} s</span>
               <span class="text-xs text-muted" data-info>noch nicht gerendert</span>
             </div>
-            <button type="button" class="candy" data-play>Abspielen</button>
+            <div class="flex gap-2">
+              <button type="button" class="candy" data-play>Abspielen</button>
+              <button type="button" class="candy [--c:var(--color-accent-2)]" data-export>WAV</button>
+            </div>
           </li>
         ))}
       </ul>
       <div class="flex flex-wrap items-center gap-4">
         <button type="button" class="candy [--c:var(--color-accent-2)]" data-stop>Stopp</button>
+        <button type="button" class="candy [--c:var(--color-accent-2)]" data-export-all>Alle exportieren</button>
+        <label class="flex items-center gap-2 text-sm">Quelle
+          <select data-source class="rounded bg-white/10 px-2 py-1"><option value="render">live gerendert</option><option value="file">Dateien</option></select>
+        </label>
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked data-epic /> epische Schicht (Chor, Ostinato, Impacts, Swells, Hörner)</label>
       </div>
       <p class="text-xs text-muted">Einzelne Teile abschalten: <code>?off=choir,ostinato,hits,swells,horns</code></p>
     </main>
     <script>
       import * as Tone from 'tone';
-      import { createMusic, SONGS } from '../scripts/audio/music.js';
+      import { createMusic, renderForExport, SONGS, MUSIC_VERSION } from '../scripts/audio/music.js';
+
+      /** AudioBuffer → WAV (16 Bit PCM) */
+      function toWav(buffer: AudioBuffer) {
+        const channels = buffer.numberOfChannels;
+        const frames = buffer.length;
+        const view = new DataView(new ArrayBuffer(44 + frames * channels * 2));
+        const text = (at: number, s: string) => [...s].forEach((ch, i) => view.setUint8(at + i, ch.charCodeAt(0)));
+        text(0, 'RIFF');
+        view.setUint32(4, 36 + frames * channels * 2, true);
+        text(8, 'WAVEfmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, channels, true);
+        view.setUint32(24, buffer.sampleRate, true);
+        view.setUint32(28, buffer.sampleRate * channels * 2, true);
+        view.setUint16(32, channels * 2, true);
+        view.setUint16(34, 16, true);
+        text(36, 'data');
+        view.setUint32(40, frames * channels * 2, true);
+        const data = [...Array(channels)].map((_, c) => buffer.getChannelData(c));
+        let at = 44;
+        for (let i = 0; i < frames; i++)
+          for (let c = 0; c < channels; c++) {
+            const v = Math.max(-1, Math.min(1, data[c][i]));
+            view.setInt16(at, v < 0 ? v * 0x8000 : v * 0x7fff, true);
+            at += 2;
+          }
+        return new Blob([view], { type: 'audio/wav' });
+      }
+      // für automatischen Export (headless): WAV eines Stücks als Base64
+      Object.assign(window, {
+        __exportWav: async (id: string) => {
+          const bytes = new Uint8Array(await toWav(await renderForExport(Tone, id)).arrayBuffer());
+          let text = '';
+          for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          return btoa(text);
+        },
+      });
+      async function exportSong(id: string, info: Element) {
+        info.textContent = 'exportiert …';
+        const blob = toWav(await renderForExport(Tone, id));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${id}.wav`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        info.textContent = `${id}.wav exportiert`;
+      }
 
       // epische Schicht an/aus (A/B-Vergleich) bzw. einzelne Teile per ?off= – ändert die Stückdaten, danach neu rendern
       const EPIC = ['choir', 'ostinato', 'hits', 'swells', 'horns'];
@@ -68,7 +124,9 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         await Tone.start();
         if (music) return music;
         master ??= new Tone.Limiter(-1).toDestination();
-        music = createMusic(Tone, new Tone.Gain(0.65).connect(master));
+        const fromFiles = document.querySelector<HTMLSelectElement>('[data-source]')!.value === 'file';
+        const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+        music = createMusic(Tone, new Tone.Gain(0.65).connect(master), fromFiles ? { url: (name: string) => `${base}/audio/${name}.mp3?v=${MUSIC_VERSION}` } : {});
         return music;
       };
       const rows = [...document.querySelectorAll<HTMLElement>('[data-song]')];
@@ -79,22 +137,30 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
           const m = await setup();
           info.textContent = 'rendert …';
           const t0 = performance.now();
-          const buffer = await m.prepare(id);
+          const { buffer } = await m.prepare(id);
           let peak = 0;
           for (let c = 0; c < buffer.numberOfChannels; c++) for (const v of buffer.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
-          info.textContent = `Renderzeit ${((performance.now() - t0) / 1000).toFixed(1)} s (beim ersten Mal) · Spitze ${peak.toFixed(2)} vor dem Limiter`;
+          info.textContent = `Lade-/Renderzeit ${((performance.now() - t0) / 1000).toFixed(1)} s (beim ersten Mal) · Spitze ${peak.toFixed(2)} vor dem Limiter`;
           m.play(id);
           rows.forEach(r => r.classList.toggle('ring-2', r === row));
         });
       }
-      document.querySelector<HTMLInputElement>('[data-epic]')!.addEventListener('change', e => {
+      for (const row of rows) row.querySelector('[data-export]')!.addEventListener('click', () => exportSong(row.dataset.song!, row.querySelector('[data-info]')!));
+      document.querySelector('[data-export-all]')!.addEventListener('click', async () => {
+        for (const row of rows) await exportSong(row.dataset.song!, row.querySelector('[data-info]')!);
+      });
+      const reset = () => {
         music?.play(null);
-        music = null;   // neu rendern
-        applyEpic((e.target as HTMLInputElement).checked);
+        music = null;   // neu laden bzw. rendern
         rows.forEach(r => {
           r.classList.remove('ring-2');
-          r.querySelector('[data-info]')!.textContent = 'noch nicht gerendert';
+          r.querySelector('[data-info]')!.textContent = 'noch nicht geladen';
         });
+      };
+      document.querySelector('[data-source]')!.addEventListener('change', reset);
+      document.querySelector<HTMLInputElement>('[data-epic]')!.addEventListener('change', e => {
+        reset();
+        applyEpic((e.target as HTMLInputElement).checked);
       });
       document.querySelector('[data-stop]')!.addEventListener('click', () => {
         music?.play(null);

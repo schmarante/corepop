@@ -10,7 +10,10 @@
 // - Ein Klangfehler darf das Spiel nie stören: alles in try/catch.
 import { soundSettings } from '../store/sound.js';
 import { createSfx } from './sfx.js';
-import { createMusic } from './music.js';
+import { createMusic, MUSIC_VERSION } from './music.js';
+
+/** fertige Musikdatei je Stück (public/audio/, erzeugt über /dev/musik/ + scripts/encode-music.sh) */
+const musicUrl = name => `${import.meta.env.BASE_URL.replace(/\/$/, '')}/audio/${name}.mp3?v=${MUSIC_VERSION}`;
 
 const LATE = 400;          // ms – ältere Effekte aus der Ladezeit fallen weg
 const SFX_LEVEL = 0.9;
@@ -42,7 +45,7 @@ function createSound() {
     const master = new Tone.Limiter(-1).toDestination();
     const sfxBus = new Tone.Gain(settings.sfx ? SFX_LEVEL : 0).connect(master);
     const musicBus = new Tone.Gain(settings.music ? MUSIC_LEVEL : 0).connect(master);
-    ready = { sfx: createSfx(Tone, sfxBus), music: createMusic(Tone, musicBus), sfxBus, musicBus };
+    ready = { sfx: createSfx(Tone, sfxBus), music: createMusic(Tone, musicBus, { url: musicUrl }), sfxBus, musicBus };
     if (settings.music && song) ready.music.play(song);
     const now = performance.now();
     for (const [name, args, at] of pending.splice(0)) if (now - at < LATE) play(name, ...args);

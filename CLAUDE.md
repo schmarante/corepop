@@ -194,7 +194,8 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   `disabled` oder `.is-waiting`. Reine Icon-Buttons (Zurück, Sprache) bleiben flach.
 
 ## Ton (seit 2026-11-24)
-- **Tone.js** (MIT; Strudel verworfen wegen AGPL). Keine Sound-Dateien – alles live synthetisiert. Eigener Chunk,
+- **Tone.js** (MIT; Strudel verworfen wegen AGPL). Effekte live synthetisiert; **Musik als MP3-Dateien** (siehe unten),
+  komponiert und erzeugt mit denselben Synths. Eigener Chunk,
   gleich nach dem Laden geholt und aufgebaut: spielt sofort, wenn der Browser Autoplay erlaubt, sonst ab der ersten
   Berührung/Taste (echtes Autoplay ohne Geste blockieren alle Browser).
 - **Seitenwechsel ohne Neuladen** (Astro `<ClientRouter />` in `Base.astro`), damit die Musik durchläuft: Sternenflug
@@ -204,15 +205,21 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   (Endkampf in d-Moll, 108 bpm, vier Teile: Galopp-Bass + Pauken + tiefe Blech-Schläge → Blech-Thema → Es-Dur-Akkord
   als Schauder → Höhepunkt mit vollem Schlagzeug, Thema hoch und tief, Becken). Notenschrift in `music.js` („D5:4 r:2 | …“, Längen in
   16teln, jeder Takt = 16 – Test `tests/music.test.js`). Stückwechsel blenden.
-  **Musik wird vorab offline gerendert** (`renderSong`: `Tone.Offline`, 32 kHz, Nachhall vorn eingemischt → nahtlose
-  Schleife) und als `Tone.Player`-Schleife gespielt; danach die übrigen Stücke nacheinander im Hintergrund. Grund: live
-  kostete die Musik ~25 % eines Desktop-Kerns (vor allem JS je Note) – auf einem Galaxy S20 FE rauschte der Ton neben
-  WebGL, und bei Schüssen fiel er ganz aus. Gemessen per Offline-Render in headless Chromium (DevTools-Pipe).
+  **Musik = fertige MP3s** in `public/audio/` (menu/game/boss, 128 kbit/s, zusammen ~1,5 MB), geladen und als
+  `Tone.Player`-Schleife gespielt; die übrigen Stücke werden danach im Hintergrund geladen. Geschichte: live synthetisiert
+  kostete ~25 % eines Desktop-Kerns (Galaxy S20 FE: Rauschen, Aussetzer); im Browser vorab gerendert dauerte es auf dem
+  Handy ~20 s bis zum ersten Ton. **Nahtlose Schleife trotz MP3:** Die Dateien haben `MUSIC_PAD` (0,5 s) Rand – davor
+  das Ende, dahinter der Anfang der Schleife –, gespielt wird das Fenster `loopStart = MUSIC_PAD` … `+ loopPeriod`
+  (auf ganze Samples bei 32 kHz gerundet). Encoder-Verzögerung verschiebt nur das Fenster, es bleibt eine exakte Periode
+  (geprüft: Naht = Kodierrauschen). **Musik ändern:** `/dev/musik/` (Quelle „live gerendert“ zum Vorhören) → „Alle
+  exportieren“ (WAVs) → `scripts/encode-music.sh ~/Downloads` (braucht `lame`) → `MUSIC_VERSION` in music.js erhöhen.
   Live bleiben nur die Effekte. Handys (`pointer: coarse`): `latencyHint: 'balanced'`.
   **Epische Schicht** (2026-11-24): Chor (Formant-Filter), Hörner (Thema eine Oktave tiefer, eigener einstimmiger Synth),
   Streicher-Ostinato, Impacts, Becken-Swells, Hall 4,2 s – je Stück über `choir`, `horns`, `ostinato`, `hits`, `swells`
   in `SONGS`. Gerenderte Stücke werden auf Spitze 1 normalisiert (`PEAK`). Renderzeit beachten: PolySynth-Stimmen und
-  Dopplungen im Blech-PolySynth sind teuer (Spiel-Stück Desktop ~10 s). Vorhören + A/B: `/dev/musik/`.
+  Dopplungen im Blech-PolySynth sind teuer (Spiel-Stück Desktop ~10 s – betrifft nur noch den Export). Snare = Rauschen
+  (Bandpass) + kurzer Fell-Schlag, Schlagzeug nur zu 25 % in den großen Hall (voll klang die Snare wie Zischen).
+  Vorhören + A/B: `/dev/musik/`.
   Musik, Effekte und Start nutzen den festgehaltenen Echtzeit-Kontext – während `Tone.Offline` zeigt `Tone.getContext()`
   auf den Offline-Kontext (sonst „different audio context“, Musik blieb stumm).
 - **Effekte** (`sfx.js`): Laser (Pulswellen-„Pju“, gedrosselt), Treffer-Plopp mit Tonhöhe je Blockfarbe (pentatonisch),

@@ -13,7 +13,8 @@
 //
 // Ein Sequenzer (16tel-Schleife) liest die Stücke: Akkorde je Takt, Bass- und Schlagzeugmuster je Takt
 // (16 Zeichen; Listen laufen reihum), Melodien als Notenfolge „D5:4 G5:2 r:2 …“ (Länge in 16teln, r = Pause, | nur zur Lesbarkeit).
-// Jedes Stück wird einmal offline gerendert (Rechenlast, siehe createMusic) und dann als Schleife abgespielt.
+// Die Stücke werden am Rechner offline gerendert und als MP3 mitgeliefert (public/audio/, siehe createMusic und
+// renderForExport); im Spiel wird nur geladen und als Schleife abgespielt.
 // Wechsel zwischen Stücken: kurz ausblenden, umschalten, einblenden – nichts bricht hart ab.
 
 /** n gleiche Takte */
@@ -138,6 +139,12 @@ const FADE = 0.6;          // s – Aus-/Einblenden beim Stückwechsel
 const TAIL = 4.5;         // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
 const RENDER_RATE = 32000; // Hz – reicht für die Synths, spart Rechenzeit und Speicher
 const PEAK = 1;           // Spitzenpegel eines gerenderten Stücks (danach Musik-Bus 0,65 → Limiter)
+/** s – Rand vor und hinter der Schleife in den Audio-Dateien (Kopien vom Ende bzw. Anfang der Schleife): MP3 fügt beim
+ *  Kodieren Stille/Verzögerung ein. Abgespielt wird ein Fenster von genau einer Schleifenlänge ab MUSIC_PAD – liegt es
+ *  durch die Verzögerung etwas versetzt, ist es trotzdem eine exakte Periode, die Naht bleibt unhörbar. */
+export const MUSIC_PAD = 0.5;
+/** bei jedem neuen Export erhöhen (Adresse der Dateien ändert sich → kein veralteter Browser-Cache) */
+export const MUSIC_VERSION = 1;
 
 /** Instrumente (Synths, Schlagzeug, Hall, Echo) in den aktuellen Tone-Kontext bauen;
  *  `play(song, leads, step, time)` spielt einen 16tel-Schritt */
@@ -147,7 +154,8 @@ async function createBand(Tone, out) {
   const reverb = new Tone.Reverb({ decay: 4.2, wet: 0.34 }).connect(out);   // großer Saal
   const echo = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.28, wet: 0.22 }).connect(reverb);
   const drumBus = new Tone.Gain(1).connect(out);
-  drumBus.connect(reverb);
+  // Schlagzeug nur zu einem Teil in den großen Saal – voll hineingeschickt zischte die Snare lange nach („Pschhh“)
+  drumBus.connect(new Tone.Gain(0.25).connect(reverb));
 
   // Streicher-Fläche
   const padFilter = new Tone.Filter({ type: 'lowpass', frequency: 1800, Q: 0.4 }).connect(reverb);
@@ -186,8 +194,10 @@ async function createBand(Tone, out) {
   }).connect(out);
   // Schlagzeug
   const kick = new Tone.MembraneSynth({ pitchDecay: 0.045, octaves: 6, envelope: { attack: 0.001, decay: 0.32, sustain: 0, release: 0.1 }, volume: -9 }).connect(drumBus);
-  const snareFilter = new Tone.Filter({ type: 'highpass', frequency: 1300 }).connect(drumBus);
-  const snare = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.15, sustain: 0 }, volume: -19 }).connect(snareFilter);
+  // Snare: Rauschen (Teppich, bandbegrenzt) + kurzer tonaler Schlag (Fell) – nur Rauschen klang wie Zischen
+  const snareFilter = new Tone.Filter({ type: 'bandpass', frequency: 3200, Q: 0.7 }).connect(drumBus);
+  const snare = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.13, sustain: 0 }, volume: -17 }).connect(snareFilter);
+  const snareBody = new Tone.MembraneSynth({ pitchDecay: 0.025, octaves: 1.4, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.05 }, volume: -12 }).connect(drumBus);
   const hatFilter = new Tone.Filter({ type: 'highpass', frequency: 7500 }).connect(drumBus);
   const hat = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.035, sustain: 0 }, volume: -30 }).connect(hatFilter);
   const tom = new Tone.MembraneSynth({ pitchDecay: 0.14, octaves: 1.6, envelope: { attack: 0.002, decay: 0.8, sustain: 0, release: 0.3 }, volume: -8 }).connect(drumBus);
@@ -250,7 +260,11 @@ async function createBand(Tone, out) {
     for (const [name, patterns] of Object.entries(song.drums)) {
       if (pick(patterns)[inBar] !== 'x') continue;
       if (name === 'kick') kick.triggerAttackRelease('C1', 0.2, time);
-      else if (name === 'snare') snare.triggerAttackRelease(0.12, time, pick(patterns)[inBar - 1] === 'x' ? 0.6 : 1);   // Wirbel leiser
+      else if (name === 'snare') {
+        const velocity = pick(patterns)[inBar - 1] === 'x' ? 0.6 : 1;   // Wirbel leiser
+        snare.triggerAttackRelease(0.12, time, velocity);
+        snareBody.triggerAttackRelease(190, 0.1, time, velocity);
+      }
       else if (name === 'hat') hat.triggerAttackRelease(0.03, time, inBar % 4 === 0 ? 1 : 0.6);
       else if (name === 'tom') tom.triggerAttackRelease(midi(chord.root - 12 + (inBar > 12 ? 7 : 0)), 0.5, time, pick(patterns)[inBar - 1] === 'x' ? 0.7 : 1);
       else if (name === 'crash') crash.triggerAttackRelease(1.5, time);
@@ -313,6 +327,9 @@ function leadsOf(song) {
 /** Länge einer Schleife in s */
 export const loopLength = song => (song.bars * 16 * 60) / song.bpm / 4;
 
+/** Periode der gerenderten Schleife in s – auf ganze Samples gerundet (so lang ist sie in den Dateien) */
+export const loopPeriod = song => Math.round(loopLength(song) * RENDER_RATE) / RENDER_RATE;
+
 /** Stück offline in einen Puffer rendern, nahtlos schleifbar: der Nachhall hinter dem Ende wird vorn eingemischt */
 async function renderSong(Tone, song) {
   const length = loopLength(song);
@@ -327,7 +344,7 @@ async function renderSong(Tone, song) {
     transport.start(0);
   }, length + TAIL, 2, RENDER_RATE);
   const audio = rendered.get();
-  const n = Math.round(length * RENDER_RATE);
+  const n = Math.round(loopPeriod(song) * RENDER_RATE);
   const loop = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: RENDER_RATE });
   for (let c = 0; c < 2; c++) {
     const src = audio.getChannelData(c);
@@ -346,21 +363,55 @@ async function renderSong(Tone, song) {
 }
 
 /**
- * Musik als vorab gerenderte Schleifen: Die Synths kosten in Echtzeit sehr viel Rechenzeit (Desktop ~25 % eines
- * Kerns) – auf Handys reichte das neben WebGL nicht, der Ton rauschte, knackste und fiel aus. Gerendert wird einmal
- * im Hintergrund (Offline-Kontext, braucht keine Geste), danach spielt nur noch ein Puffer.
- * @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out
+ * Stück für den Export rendern: Schleife mit MUSIC_PAD Rand davor (Ende der Schleife) und dahinter (Anfang) –
+ * daraus werden die MP3-Dateien (Dev-Seite /dev/musik/ → scripts/encode-music.sh → public/audio/).
+ * @returns {Promise<AudioBuffer>}
  */
-export function createMusic(Tone, out) {
+export async function renderForExport(Tone, name) {
+  const loop = (await renderSong(Tone, SONGS[name])).get();
+  const n = loop.length;
+  const pad = Math.round(MUSIC_PAD * loop.sampleRate);
+  const out = new AudioBuffer({ numberOfChannels: 2, length: n + 2 * pad, sampleRate: loop.sampleRate });
+  for (let c = 0; c < 2; c++) {
+    const src = loop.getChannelData(c);
+    const dst = out.getChannelData(c);
+    dst.set(src.subarray(n - pad), 0);
+    dst.set(src, pad);
+    dst.set(src.subarray(0, pad), pad + n);
+  }
+  return out;
+}
+
+/**
+ * Musik als Schleifen aus fertigen Audio-Dateien (public/audio/<name>.mp3, Rand MUSIC_PAD). Vorher wurden die Stücke
+ * im Browser gerendert – auf dem Handy dauerte das ~20 s bis zum ersten Ton; davor liefen die Synths live und kosteten
+ * neben WebGL zu viel Rechenzeit (Rauschen, Aussetzer). Die Synths in diesem Modul bleiben die Quelle der Dateien.
+ * @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out
+ * @param {{ url?: (name: string) => string }} [options]  url: Adresse der Datei je Stück; ohne → im Browser rendern
+ *   (Dev-Seite zum Vorhören)
+ */
+export function createMusic(Tone, out, { url } = {}) {
   // Echtzeit-Kontext festhalten: Während Tone.Offline rendert, zeigt Tone.getContext() auf den Offline-Kontext –
   // Knoten fürs Abspielen dürfen nie dort entstehen (sonst „different audio context“, Musik startet nicht)
   const context = Tone.getContext();
-  const buffers = new Map();   // Name → Promise<ToneAudioBuffer>
+  const buffers = new Map();   // Name → Promise<{ buffer: ToneAudioBuffer, loopStart: number, loopEnd: number }>
   let queue = Promise.resolve();
-  /** Rendern nacheinander (nie zwei gleichzeitig – Rechenlast) */
+  /** Datei laden und dekodieren – Schleife = Fenster ab dem Rand */
+  const load = async name => {
+    const response = await fetch(url(name));
+    if (!response.ok) throw new Error(`Musik ${name}: ${response.status}`);
+    const audio = await context.decodeAudioData(await response.arrayBuffer());
+    return { buffer: new Tone.ToneAudioBuffer(audio), loopStart: MUSIC_PAD, loopEnd: MUSIC_PAD + loopPeriod(SONGS[name]) };
+  };
+  /** im Browser rendern (Dev-Seite) – die ganze Schleife */
+  const renderLoop = async name => {
+    const buffer = await renderSong(Tone, SONGS[name]);
+    return { buffer, loopStart: 0, loopEnd: buffer.duration };
+  };
+  /** Laden bzw. Rendern nacheinander (nie zwei gleichzeitig) */
   const render = name => {
     if (!buffers.has(name)) {
-      const job = queue.then(() => renderSong(Tone, SONGS[name]));
+      const job = queue.then(() => (url ? load(name) : renderLoop(name)));
       queue = job.catch(() => {});
       buffers.set(name, job);
       job.catch(() => buffers.delete(name));   // später nochmal versuchen
@@ -383,21 +434,21 @@ export function createMusic(Tone, out) {
   };
 
   return {
-    /** Stück wechseln (blendet aus und wieder ein); null = Stille. Ist es noch nicht gerendert, setzt es danach ein. */
+    /** Stück wechseln (blendet aus und wieder ein); null = Stille. Ist es noch nicht geladen, setzt es danach ein. */
     play(name) {
       if (name === current) return;
       current = name;
       fadeOut(player);
       player = null;
       if (!name) return;
-      render(name).then(buffer => {
+      render(name).then(({ buffer, loopStart, loopEnd }) => {
         if (current !== name || player) return;
         const gain = new Tone.Gain({ gain: 0, context }).connect(out);
-        const node = new Tone.Player({ url: buffer, loop: true, context }).connect(gain);
-        node.start(context.now() + 0.05);
+        const node = new Tone.Player({ url: buffer, loop: true, loopStart, loopEnd, context }).connect(gain);
+        node.start(context.now() + 0.05, loopStart);
         gain.gain.rampTo(1, FADE * 2, context.now() + 0.05);
         player = { node, gain };
-        // die übrigen Stücke nacheinander vorbereiten – Wechsel (Menü → Spiel → Boss) gehen dann ohne Pause
+        // die übrigen Stücke nacheinander vorbereiten (laden) – Wechsel (Menü → Spiel → Boss) gehen dann ohne Pause
         for (const other of Object.keys(SONGS)) render(other);
       }, () => {});
     },
