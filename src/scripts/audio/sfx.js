@@ -16,6 +16,9 @@ const COLOR_IDS = Object.keys(COLORS);
 /** @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out */
 export function createSfx(Tone, out) {
   const midi = n => Tone.Frequency(n, 'midi').toFrequency();
+  // Echtzeit-Kontext festhalten – während die Musik offline rendert, zeigt Tone.immediate() auf deren Uhr
+  const context = Tone.getContext();
+  const immediate = () => context.immediate();
   /** Blockfarbe → Ton (G4-Pentatonik über zwei Oktaven) */
   const colorNote = color => {
     const i = Math.max(0, COLOR_IDS.indexOf(color)) % 10;
@@ -32,7 +35,7 @@ export function createSfx(Tone, out) {
     let k = 0;
     return (delay = 0, hold = 0) => {
       const voice = voices[k++ % count];
-      const at = Math.max(Tone.immediate() + delay, voice.last + 0.01);
+      const at = Math.max(immediate() + delay, voice.last + 0.01);
       voice.last = at + hold;
       return { node: voice.node, at };
     };
@@ -93,14 +96,14 @@ export function createSfx(Tone, out) {
 
   return {
     hit(color) {
-      const now = Tone.immediate();
+      const now = immediate();
       if (now - lastHit < HIT_GAP) return;
       lastHit = now;
       const f = colorNote(color);
       sweep(pop(), f * 2, f, 0.035, 0.08, 0.7 + Math.random() * 0.3);
     },
     fire() {
-      const now = Tone.immediate();
+      const now = immediate();
       if (now - lastFire < FIRE_GAP) return;
       lastFire = now;
       sweep(zap(), 1900 + Math.random() * 200, 240, 0.12, 0.1, 0.6);

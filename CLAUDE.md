@@ -209,6 +209,12 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   kostete die Musik ~25 % eines Desktop-Kerns (vor allem JS je Note) – auf einem Galaxy S20 FE rauschte der Ton neben
   WebGL, und bei Schüssen fiel er ganz aus. Gemessen per Offline-Render in headless Chromium (DevTools-Pipe).
   Live bleiben nur die Effekte. Handys (`pointer: coarse`): `latencyHint: 'balanced'`.
+  **Epische Schicht** (2026-11-24): Chor (Formant-Filter), Hörner (Thema eine Oktave tiefer, eigener einstimmiger Synth),
+  Streicher-Ostinato, Impacts, Becken-Swells, Hall 4,2 s – je Stück über `choir`, `horns`, `ostinato`, `hits`, `swells`
+  in `SONGS`. Gerenderte Stücke werden auf Spitze 1 normalisiert (`PEAK`). Renderzeit beachten: PolySynth-Stimmen und
+  Dopplungen im Blech-PolySynth sind teuer (Spiel-Stück Desktop ~10 s). Vorhören + A/B: `/dev/musik/`.
+  Musik, Effekte und Start nutzen den festgehaltenen Echtzeit-Kontext – während `Tone.Offline` zeigt `Tone.getContext()`
+  auf den Offline-Kontext (sonst „different audio context“, Musik blieb stumm).
 - **Effekte** (`sfx.js`): Laser (Pulswellen-„Pju“, gedrosselt), Treffer-Plopp mit Tonhöhe je Blockfarbe (pentatonisch),
   Explosion (Rauschen + Bass, Supernova größer), Start (Wusch; Spreng-Flieger mit Warn-Piepsen), Abflug, Absturz vom
   Band (Rutschpfeife), blockiert („oh-oh“, Ereignis `blocked`), „geht nicht“, Entschärfen, Specials, Sterne im
@@ -264,6 +270,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - Neue Seite: Id in `PAGES` + Slug je Sprache, deutsche Route unter `src/pages/<slug>/`, Fall in `src/pages/[lang]/[slug]/`.
 
 ## Mobile-first
+- **Dev-Seite Musik:** https://corepop.localhost:4321/dev/musik/ (Stücke vorhören, Renderzeit, A/B epische Schicht).
 - **Dev-Übersicht der Modelle:** https://corepop.localhost:4321/dev/modelle/ (Dev-Server) – alle Figuren mit 3D-Vorschau,
   Kennzahlen, Level-Zuordnung und „Schnitt“ durch den Kern. Quelle `src/dev/models.astro` + `src/scripts/dev/`,
   eingebunden per `devPages()` in `astro.config.mjs`: nur im Dev-Server und in Builds mit `PUBLIC_DEBUG=true`.

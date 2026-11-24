@@ -1,0 +1,105 @@
+---
+// Dev-Seite: Musikstücke vorhören (audio/music.js) – rendern wie im Spiel (offline, nahtlose Schleife), abspielen,
+// Renderzeit und Spitzenpegel anzeigen. Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs →
+// devPages). Bewusst nur Deutsch.
+import '../styles/global.css';
+import Starfield from '../components/Starfield.astro';
+import Logo from '../components/Logo.astro';
+import { SONGS, loopLength } from '../scripts/audio/music.js';
+
+const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, bars: song.bars, seconds: loopLength(song).toFixed(1) }));
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Musik · corepop dev</title>
+  </head>
+  <body class="min-h-dvh text-text antialiased">
+    <Starfield />
+    <main class="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6">
+      <header class="flex flex-col gap-1">
+        <Logo class="text-5xl" />
+        <h1 class="text-2xl font-extrabold">Musik <span class="text-base font-bold text-muted">· Vorhören</span></h1>
+        <p class="text-sm text-muted">Gerendert wie im Spiel (offline, Schleife). Das erste Abspielen rendert das Stück – dauert ein paar Sekunden.</p>
+      </header>
+      <ul class="flex flex-col gap-3">
+        {songs.map(song => (
+          <li class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/5 p-4" data-song={song.id}>
+            <div class="flex flex-col">
+              <b class="text-lg">{song.id}</b>
+              <span class="text-sm text-muted">{song.bpm} bpm · {song.bars} Takte · {song.seconds} s</span>
+              <span class="text-xs text-muted" data-info>noch nicht gerendert</span>
+            </div>
+            <button type="button" class="candy" data-play>Abspielen</button>
+          </li>
+        ))}
+      </ul>
+      <div class="flex flex-wrap items-center gap-4">
+        <button type="button" class="candy [--c:var(--color-accent-2)]" data-stop>Stopp</button>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked data-epic /> epische Schicht (Chor, Ostinato, Impacts, Swells, Hörner)</label>
+      </div>
+      <p class="text-xs text-muted">Einzelne Teile abschalten: <code>?off=choir,ostinato,hits,swells,horns</code></p>
+    </main>
+    <script>
+      import * as Tone from 'tone';
+      import { createMusic, SONGS } from '../scripts/audio/music.js';
+
+      // epische Schicht an/aus (A/B-Vergleich) bzw. einzelne Teile per ?off= – ändert die Stückdaten, danach neu rendern
+      const EPIC = ['choir', 'ostinato', 'hits', 'swells', 'horns'];
+      const saved = Object.fromEntries(Object.entries(SONGS).map(([id, song]) => [id, Object.fromEntries(EPIC.map(k => [k, song[k]]))]));
+      const off = (new URLSearchParams(location.search).get('off') ?? '').split(',').filter(Boolean);
+      const applyEpic = (on: boolean) => {
+        for (const [id, song] of Object.entries(SONGS))
+          for (const k of EPIC) {
+            if (on && !off.includes(k)) song[k] = saved[id][k];
+            else delete song[k];
+          }
+      };
+      applyEpic(true);
+
+      // wie im Spiel (audio/sound.js): Musik-Bus → Limiter → Ausgang
+      let music: ReturnType<typeof createMusic> | null = null;
+      let master: any = null;
+      const setup = async () => {
+        await Tone.start();
+        if (music) return music;
+        master ??= new Tone.Limiter(-1).toDestination();
+        music = createMusic(Tone, new Tone.Gain(0.65).connect(master));
+        return music;
+      };
+      const rows = [...document.querySelectorAll<HTMLElement>('[data-song]')];
+      for (const row of rows) {
+        const id = row.dataset.song!;
+        const info = row.querySelector('[data-info]')!;
+        row.querySelector('[data-play]')!.addEventListener('click', async () => {
+          const m = await setup();
+          info.textContent = 'rendert …';
+          const t0 = performance.now();
+          const buffer = await m.prepare(id);
+          let peak = 0;
+          for (let c = 0; c < buffer.numberOfChannels; c++) for (const v of buffer.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+          info.textContent = `Renderzeit ${((performance.now() - t0) / 1000).toFixed(1)} s (beim ersten Mal) · Spitze ${peak.toFixed(2)} vor dem Limiter`;
+          m.play(id);
+          rows.forEach(r => r.classList.toggle('ring-2', r === row));
+        });
+      }
+      document.querySelector<HTMLInputElement>('[data-epic]')!.addEventListener('change', e => {
+        music?.play(null);
+        music = null;   // neu rendern
+        applyEpic((e.target as HTMLInputElement).checked);
+        rows.forEach(r => {
+          r.classList.remove('ring-2');
+          r.querySelector('[data-info]')!.textContent = 'noch nicht gerendert';
+        });
+      });
+      document.querySelector('[data-stop]')!.addEventListener('click', () => {
+        music?.play(null);
+        rows.forEach(r => r.classList.remove('ring-2'));
+      });
+    </script>
+  </body>
+</html>

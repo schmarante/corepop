@@ -28,5 +28,12 @@ describe('Musik', () => {
       for (const list of [song.bass, ...Object.values(song.drums), song.doom, song.stabs].filter(Array.isArray))
         expect(song.bars % list.length).toBe(0);
       for (const chord of song.chords) expect(typeof chord).toBe('string');
+      // epische Schicht: Bereiche und Takte im Stück, Ostinato 16 Schritte
+      for (const range of [song.choir, song.ostinato && [song.ostinato.from, song.ostinato.to]].filter(Boolean)) {
+        expect(range[0]).toBeGreaterThanOrEqual(0);
+        expect(range[1]).toBeLessThanOrEqual(song.bars);
+      }
+      if (song.ostinato) expect(song.ostinato.pattern).toHaveLength(16);
+      for (const bar of [...(song.hits ?? []), ...(song.swells ?? [])]) expect(bar).toBeLessThan(song.bars);
     });
 });

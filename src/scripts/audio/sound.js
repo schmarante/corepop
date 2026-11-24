@@ -27,6 +27,7 @@ export const getSound = () => (shared ??= createSound());
 function createSound() {
   let settings = soundSettings();
   let Tone = null;
+  let ctx = null;          // der Echtzeit-Kontext (Tone.getContext() zeigt während eines Offline-Renders woandershin)
   let module = null;       // Promise des Imports
   let ready = null;        // { sfx, music, sfxBus, musicBus }
   let preparing = null;
@@ -54,7 +55,8 @@ function createSound() {
       .then(() => {
         if (!ready) {
           // eigener Kontext vor dem Aufbau – alle Knoten und der Transport hängen daran
-          Tone.setContext(new Tone.Context({ latencyHint: LOW_POWER ? 'balanced' : 'interactive', lookAhead: 0.05 }));
+          ctx = new Tone.Context({ latencyHint: LOW_POWER ? 'balanced' : 'interactive', lookAhead: 0.05 });
+          Tone.setContext(ctx);
           build();
         }
         resume();
@@ -68,7 +70,7 @@ function createSound() {
 
   /** Kontext wecken – klappt ohne Geste nur, wenn der Browser Autoplay erlaubt (sonst wartet das Versprechen still) */
   const resume = () => {
-    if (Tone && Tone.getContext().state !== 'running' && !document.hidden) Tone.start().catch(() => {});
+    if (ctx && ctx.state !== 'running' && !document.hidden) ctx.resume().catch(() => {});
   };
 
   // jede Geste weckt den Ton (die erste startet ihn, spätere z. B. auf iOS nach dem Tab-Wechsel)
@@ -95,9 +97,9 @@ function createSound() {
     try {
       if (document.hidden) {
         ready.music.play(null);
-        setTimeout(() => document.hidden && Tone.getContext().rawContext.suspend?.(), 700);
+        setTimeout(() => document.hidden && ctx.rawContext.suspend?.(), 700);
       } else {
-        Tone.getContext().rawContext.resume?.();
+        ctx.rawContext.resume?.();
         if (settings.music) ready.music.play(song);
       }
     } catch {

@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 
 // Dev-Seiten (src/dev/): nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true – nie auf der veröffentlichten Seite.
 //   /dev/modelle/  alle Figuren auf einen Blick (3D-Vorschau, Kennzahlen, Schnitt durch den Kern)
+//   /dev/musik/    Musikstücke vorhören (gerendert wie im Spiel, Renderzeit, Spitzenpegel)
 function devPages() {
   return {
     name: 'corepop-dev-pages',
@@ -11,6 +12,7 @@ function devPages() {
       'astro:config:setup': ({ command, injectRoute }) => {
         if (command !== 'dev' && process.env.PUBLIC_DEBUG !== 'true') return;
         injectRoute({ pattern: '/dev/modelle', entrypoint: './src/dev/models.astro' });
+        injectRoute({ pattern: '/dev/musik', entrypoint: './src/dev/music.astro' });
       },
     },
   };

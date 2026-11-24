@@ -6,6 +6,11 @@
 //   boss  Boss-Level – Endkampf in Moll: Galopp-Bass, Pauken, Becken, tiefe Blech-Schläge, steigert sich bis zum
 //         Höhepunkt (siehe dort)
 //
+// Epische Schicht (optional je Stück): Chor („Aah“, `choir: [von, bis)` in Takten), Streicher-Ostinato in 16teln
+// (`ostinato: { from, to, pattern }` – R Grundton, F Quinte, O Oktave), Impacts auf Abschnittsanfängen (`hits`: Takte),
+// Becken-Swells, die einen Takt lang in einen Abschnitt hineinschwellen (`swells`: Takte), Hörner = Blech-Thema eine
+// Oktave tiefer gedoppelt (`horns`).
+//
 // Ein Sequenzer (16tel-Schleife) liest die Stücke: Akkorde je Takt, Bass- und Schlagzeugmuster je Takt
 // (16 Zeichen; Listen laufen reihum), Melodien als Notenfolge „D5:4 G5:2 r:2 …“ (Länge in 16teln, r = Pause, | nur zur Lesbarkeit).
 // Jedes Stück wird einmal offline gerendert (Rechenlast, siehe createMusic) und dann als Schleife abgespielt.
@@ -31,8 +36,12 @@ const CHORDS = {
 
 export const SONGS = {
   menu: {
-    bpm: 84,
+    bpm: 80,
     bars: 8,
+    choir: [0, 8],
+    horns: true,
+    hits: [0, 4],
+    swells: [0, 4],
     chords: ['C', 'Bb', 'F', 'C', 'Am', 'F', 'G', 'G'],
     bass: ['R.......F.......'],
     bassLength: 7,
@@ -49,6 +58,11 @@ export const SONGS = {
   game: {
     bpm: 124,
     bars: 16,
+    choir: [8, 16],
+    horns: true,
+    ostinato: { from: 8, to: 16, pattern: 'RRFRRRFROROFRRFR' },
+    hits: [0, 8],
+    swells: [0, 8],
     chords: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'],
     bass: ['R.O.R.O.R.O.F.O.'],
     bassLength: 1,
@@ -70,6 +84,11 @@ export const SONGS = {
   boss: {
     bpm: 108,
     bars: 16,
+    choir: [4, 16],
+    horns: true,
+    ostinato: { from: 0, to: 16, pattern: 'RRRRRRFRRRRRRRFO' },
+    hits: [0, 4, 8, 12],
+    swells: [0, 4, 8, 12],
     chords: ['Dm', 'Dm', 'Bb', 'A', 'Dm', 'Bb', 'Gm', 'A', 'Dm', 'Eb', 'Dm', 'A', 'Gm', 'Eb', 'A', 'A'],
     bass: ['R.RRR.RRR.RRR.RR', 'R.RRR.RRR.RRR.RR', 'R.RRR.RRR.RRR.RR', 'R.RRR.RRO.OOO.OO'],
     bassLength: 1,
@@ -116,15 +135,16 @@ export function parseMelody(text) {
 }
 
 const FADE = 0.6;          // s – Aus-/Einblenden beim Stückwechsel
-const TAIL = 3;           // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
+const TAIL = 4.5;         // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
 const RENDER_RATE = 32000; // Hz – reicht für die Synths, spart Rechenzeit und Speicher
+const PEAK = 1;           // Spitzenpegel eines gerenderten Stücks (danach Musik-Bus 0,65 → Limiter)
 
 /** Instrumente (Synths, Schlagzeug, Hall, Echo) in den aktuellen Tone-Kontext bauen;
  *  `play(song, leads, step, time)` spielt einen 16tel-Schritt */
 async function createBand(Tone, out) {
   const midi = n => Tone.Frequency(n, 'midi').toFrequency();
 
-  const reverb = new Tone.Reverb({ decay: 2.8, wet: 0.3 }).connect(out);
+  const reverb = new Tone.Reverb({ decay: 4.2, wet: 0.34 }).connect(out);   // großer Saal
   const echo = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.28, wet: 0.22 }).connect(reverb);
   const drumBus = new Tone.Gain(1).connect(out);
   drumBus.connect(reverb);
@@ -174,6 +194,48 @@ async function createBand(Tone, out) {
   const crashFilter = new Tone.Filter({ type: 'highpass', frequency: 4200 }).connect(drumBus);
   const crash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.6, sustain: 0 }, volume: -22 }).connect(crashFilter);
 
+  // --- epische Schicht ---
+  // Chor: verstimmte Sägezähne durch zwei Formant-Filter (≈ „Aah“), weicher Einsatz, viel Hall
+  const choirBus = new Tone.Gain(1).connect(reverb);
+  const formantA = new Tone.Filter({ type: 'bandpass', frequency: 760, Q: 3.5 }).connect(choirBus);
+  const formantB = new Tone.Filter({ type: 'bandpass', frequency: 1180, Q: 4.5 }).connect(choirBus);
+  // (Renderzeit: jede Stimme rechnet ihre Oszillatoren das ganze Stück mit – deshalb 3 Sägezähne, 6 Stimmen,
+  // kurzes Ausklingen; der lange Hall trägt den Rest)
+  const choir = new Tone.PolySynth(Tone.Synth, {
+    maxPolyphony: 6,
+    oscillator: { type: 'fatsawtooth', count: 2, spread: 30 },
+    envelope: { attack: 0.7, decay: 0.4, sustain: 0.85, release: 0.9 },
+    volume: -10,
+  });
+  choir.connect(formantA);
+  choir.connect(formantB);
+  // Streicher-Ostinato: kurze, gerissene Sägezahn-Töne – einstimmig (16tel überlappen nicht; PolySynth je Note kostete
+  // beim Rendern ein Vielfaches)
+  const ostinatoFilter = new Tone.Filter({ type: 'lowpass', frequency: 2400, Q: 0.6 }).connect(reverb);
+  const ostinato = new Tone.Synth({
+    oscillator: { type: 'sawtooth' },
+    envelope: { attack: 0.004, decay: 0.11, sustain: 0.15, release: 0.06 },
+    volume: -19,
+  }).connect(ostinatoFilter);
+  // Impact: tiefer Schlag + dumpfes Rauschen (der „Trailer-Hit“)
+  const impact = new Tone.MembraneSynth({ pitchDecay: 0.35, octaves: 4, envelope: { attack: 0.002, decay: 1.8, sustain: 0, release: 0.8 }, volume: -5 }).connect(drumBus);
+  const impactNoiseFilter = new Tone.Filter({ type: 'lowpass', frequency: 900 }).connect(reverb);
+  const impactNoise = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.002, decay: 1.2, sustain: 0 }, volume: -12 }).connect(impactNoiseFilter);
+  // eigenes Becken (das vom Schlagzeug kann im selben Schritt schon schlagen – Tone verlangt steigende Startzeiten)
+  const impactCrashFilter = new Tone.Filter({ type: 'highpass', frequency: 4200 }).connect(drumBus);
+  const impactCrash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.8, sustain: 0 }, volume: -22 }).connect(impactCrashFilter);
+  // Hörner: das Blech-Thema eine Oktave tiefer – einstimmig, weicher Sägezahn durch festes Tiefpassfilter (als zweite
+  // Stimme im Blech-PolySynth kostete die Dopplung beim Rendern mehr als das ganze übrige Stück)
+  const hornFilter = new Tone.Filter({ type: 'lowpass', frequency: 1100, Q: 0.7 }).connect(echo);
+  const horn = new Tone.Synth({
+    oscillator: { type: 'fatsawtooth', count: 2, spread: 14 },
+    envelope: { attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.4 },
+    volume: -19,
+  }).connect(hornFilter);
+  // Becken-Swell: Rauschen schwillt an und bricht ab
+  const swellFilter = new Tone.Filter({ type: 'highpass', frequency: 2800 }).connect(reverb);
+  const swell = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 1, attackCurve: 'exponential', decay: 0.05, sustain: 0 }, volume: -20 }).connect(swellFilter);
+
   const voices = { brass, pulse };
   await reverb.ready;
 
@@ -210,8 +272,30 @@ async function createBand(Tone, out) {
       const k = inBar % 6;
       arp.triggerAttackRelease(midi(tones[k < 4 ? k : 6 - k]), sixteenth * 0.8, time, 0.8);
     }
-    // Melodie
-    for (const lead of leads.get(s) ?? []) voices[lead.voice].triggerAttackRelease(midi(lead.midi), sixteenth * lead.length * 0.92, time, 0.85);
+    // Melodie (Blech-Thema mit Hörnern eine Oktave tiefer)
+    for (const lead of leads.get(s) ?? []) {
+      voices[lead.voice].triggerAttackRelease(midi(lead.midi), sixteenth * lead.length * 0.92, time, 0.85);
+      if (song.horns && lead.voice === 'brass') horn.triggerAttackRelease(midi(lead.midi - 12), sixteenth * lead.length * 0.92, time, 0.8);
+    }
+    const within = range => range && bar >= range[0] && bar < range[1];
+    // Chor: je Takt der Akkord (Lage der Streicher)
+    if (inBar === 0 && within(song.choir)) choir.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15, time, 0.6);
+    // Ostinato: 16tel auf Grundton/Quinte/Oktave (eine Oktave über dem Bass), Taktanfang betont
+    if (song.ostinato && within([song.ostinato.from, song.ostinato.to])) {
+      const o = song.ostinato.pattern[inBar];
+      const note = chord.root + 24 + (o === 'F' ? 7 : o === 'O' ? 12 : 0);
+      if (o !== '.') ostinato.triggerAttackRelease(midi(note), sixteenth * 0.6, time, inBar % 4 === 0 ? 0.9 : 0.6);
+    }
+    // Impact auf dem Abschnittsanfang, Swell schwillt den Takt davor hinein
+    if (inBar === 0 && song.hits?.includes(bar)) {
+      impact.triggerAttackRelease(midi(chord.root - 12), 1.6, time);
+      impactNoise.triggerAttackRelease(1.1, time, 0.8);
+      impactCrash.triggerAttackRelease(1.6, time, 0.8);
+    }
+    if (inBar === 0 && song.swells?.includes((bar + 1) % song.bars)) {
+      swell.envelope.attack = sixteenth * 16;
+      swell.triggerAttackRelease(sixteenth * 16, time, 0.7);
+    }
   };
 }
 
@@ -244,12 +328,19 @@ async function renderSong(Tone, song) {
   }, length + TAIL, 2, RENDER_RATE);
   const audio = rendered.get();
   const n = Math.round(length * RENDER_RATE);
-  const loop = Tone.getContext().createBuffer(2, n, RENDER_RATE);
+  const loop = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: RENDER_RATE });
   for (let c = 0; c < 2; c++) {
     const src = audio.getChannelData(c);
     const dst = loop.getChannelData(c);
     dst.set(src.subarray(0, n));
     for (let i = n; i < src.length; i++) dst[i - n] += src[i];
+  }
+  // Spitze auf höchstens PEAK: Impacts sollen nicht den Limiter (sound.js) quetschen; gleicht die Stücke auch an
+  let peak = 0;
+  for (let c = 0; c < 2; c++) for (const v of loop.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+  if (peak > PEAK) for (let c = 0; c < 2; c++) {
+    const data = loop.getChannelData(c);
+    for (let i = 0; i < data.length; i++) data[i] *= PEAK / peak;
   }
   return new Tone.ToneAudioBuffer(loop);
 }
@@ -261,6 +352,9 @@ async function renderSong(Tone, song) {
  * @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out
  */
 export function createMusic(Tone, out) {
+  // Echtzeit-Kontext festhalten: Während Tone.Offline rendert, zeigt Tone.getContext() auf den Offline-Kontext –
+  // Knoten fürs Abspielen dürfen nie dort entstehen (sonst „different audio context“, Musik startet nicht)
+  const context = Tone.getContext();
   const buffers = new Map();   // Name → Promise<ToneAudioBuffer>
   let queue = Promise.resolve();
   /** Rendern nacheinander (nie zwei gleichzeitig – Rechenlast) */
@@ -279,8 +373,8 @@ export function createMusic(Tone, out) {
 
   const fadeOut = old => {
     if (!old) return;
-    old.gain.gain.cancelScheduledValues(Tone.now());
-    old.gain.gain.rampTo(0, FADE * 0.8);
+    old.gain.gain.cancelScheduledValues(context.now());
+    old.gain.gain.rampTo(0, FADE * 0.8, context.now());
     setTimeout(() => {
       old.node.stop();
       old.node.dispose();
@@ -298,10 +392,10 @@ export function createMusic(Tone, out) {
       if (!name) return;
       render(name).then(buffer => {
         if (current !== name || player) return;
-        const gain = new Tone.Gain(0).connect(out);
-        const node = new Tone.Player({ url: buffer, loop: true }).connect(gain);
-        node.start(Tone.now() + 0.05);
-        gain.gain.rampTo(1, FADE * 2);
+        const gain = new Tone.Gain({ gain: 0, context }).connect(out);
+        const node = new Tone.Player({ url: buffer, loop: true, context }).connect(gain);
+        node.start(context.now() + 0.05);
+        gain.gain.rampTo(1, FADE * 2, context.now() + 0.05);
         player = { node, gain };
         // die übrigen Stücke nacheinander vorbereiten – Wechsel (Menü → Spiel → Boss) gehen dann ohne Pause
         for (const other of Object.keys(SONGS)) render(other);
