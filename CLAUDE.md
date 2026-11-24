@@ -101,7 +101,9 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   - `ddev yarn dev` → Dev-Server mit HMR unter https://corepop.localhost:4321/
   - `ddev yarn build` → `dist/`, ausgeliefert unter https://corepop.localhost/
   - `ddev yarn test` → Vitest (`tests/`)
-- **GitHub Actions** (`.github/workflows/static.yml`, wie in ../wyrfl): jeder Push auf `develop` → `yarn install --frozen-lockfile`, `yarn test`,
+- **Branches:** gearbeitet wird auf `develop` (Standard-Branch); veröffentlicht wird, indem `develop` nach `master`
+  gebracht und gepusht wird.
+- **GitHub Actions** (`.github/workflows/static.yml`, wie in ../wyrfl): jeder Push auf `master` → `yarn install --frozen-lockfile`, `yarn test`,
   Build mit Basispfad `/corepop/` → GitHub Pages (https://schmarante.github.io/corepop/). Einmalig: Settings → Pages →
   Source „GitHub Actions“. Repository-Variablen: `SITE_URL` (eigene Domain), `PUBLIC_DEBUG=true` (Test-Tasten).
 - Der ursprüngliche Ein-Datei-Prototyp liegt zum Nachschlagen in `prototype/asteroid.html` (wird nicht gebaut).

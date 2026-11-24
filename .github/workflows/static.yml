@@ -1,13 +1,14 @@
 # Testet, baut die statische Seite (dist/) und veröffentlicht sie auf GitHub Pages: https://schmarante.github.io/corepop/
-# Läuft bei jedem Push auf develop (und von Hand über den Actions-Tab). Aufbau wie in ../wyrfl.
+# Läuft bei jedem Push auf master (und von Hand über den Actions-Tab). Gearbeitet wird auf develop (Standard-Branch);
+# veröffentlicht wird erst, wenn develop nach master gebracht wird. Aufbau wie in ../wyrfl.
 # Einmalig einrichten: Repository → Settings → Pages → Source: „GitHub Actions“ (sonst läuft GitHubs eigener
 # Jekyll-Build und der Deploy-Schritt schlägt fehl).
 name: Deploy to GitHub Pages
 
 on:
-  # jeder Push auf develop
+  # jeder Push auf master (= veröffentlichen)
   push:
-    branches: ["develop"]
+    branches: ["master"]
 
   # von Hand im Actions-Tab
   workflow_dispatch:
