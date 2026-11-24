@@ -2,7 +2,7 @@
 // Optionen: Sprache wählen und „Über corepop“ (Bibliotheken, Schrift, Lizenzen). Ein <dialog> pro Seite (Base.astro),
 // geöffnet über das Zahnrad (OptionsButton.astro). Während er offen ist, pausiert das Spiel (modes/solo.js).
 import { useTranslations, localePath, LANGUAGES } from '../i18n/index.js';
-import { RUNTIME, ASSETS, BUILD } from '../data/credits.js';
+import { RUNTIME, ASSETS, BUILD, ABOUT } from '../data/credits.js';
 import { CLOSE_ICON, LOCK_ICON } from '../scripts/ui/icons.js';
 import { DESIGNS } from '../scripts/store/progress.js';
 
@@ -65,6 +65,11 @@ const groups = [
     <section class="flex flex-col gap-3 leading-relaxed">
       <h3 class="text-sm font-bold uppercase tracking-wide text-muted">{t('about.title')}</h3>
       <p>{t('about.intro')}</p>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        <dt class="text-muted">{t('about.author')}</dt><dd>{ABOUT.author}</dd>
+        <dt class="text-muted">{t('about.email')}</dt>
+        <dd><a href={`mailto:${ABOUT.email}`} class="font-bold text-accent underline-offset-2 hover:underline">{ABOUT.email}</a></dd>
+      </dl>
       <p class="text-muted">{t('about.privacy')}</p>
       <p class="text-muted">{t('about.openSource')}</p>
       {groups.map(group => (

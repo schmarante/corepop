@@ -31,6 +31,10 @@ const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const PULSE = 5;         // rad/s – Puls der Spezial-Würfel
 const PULSE_WHITE = 0.55; // Anteil Weiß auf dem Höhepunkt des Pulses
 const FLING_FRICTION = 2.2; // 1/s – wie schnell der Schwung nach dem Wischen ausläuft (nach ~1 s gut ein Zehntel)
+const KICK_SPIN = 2.6;      // rad/s Drehschub je Einheit Drehmoment (Explosion, impulse)
+const KICK_WOBBLE = 2.2;    // rad/s Kippschub je Einheit Drehmoment
+const WOBBLE_SPRING = 14;   // 1/s² – wie stark das Kippen zurückfedert
+const WOBBLE_DAMPING = 3.2; // 1/s – wie schnell das Nachwippen ausläuft
 const FLING_MAX = 12;       // rad/s – mehr Schwung gibt ein Wisch nie
 const RECOLOR = 0.45;     // s – Farbwechsel (Special): Aufblitzen und Übergang
 const SHRINK = 0.18;     // s – getroffener Voxel blitzt auf und schrumpft weg
@@ -127,7 +131,12 @@ export function createAsteroidView(scene, asteroid, level) {
   }
 
   const radius = Math.max(...asteroid.voxels.map(v => Math.hypot(v.x, v.y, v.z)));   // in Voxeln
-  let flingVelocity = 0;   // rad/s – Schwung nach dem Wischen
+  let flingVelocity = 0;   // rad/s – Schwung nach dem Wischen (und Rückstoß einer Explosion um die Hochachse)
+  /** Rückstoß-Wippen nach einer Explosion: Kippwinkel um x/z (rad) und ihre Geschwindigkeit – federt zurück */
+  const wobble = { x: 0, z: 0, vx: 0, vz: 0 };
+  const kickR = new THREE.Vector3();
+  const kickF = new THREE.Vector3();
+  const kickT = new THREE.Vector3();
   let time = Math.random() * 100;   // Startpunkt im Taumeln – nur Optik, beeinflusst die Spiellogik nicht direkt
   let baseY = 0;
   let appear = 0;          // s seit dem Laden
@@ -182,6 +191,21 @@ export function createAsteroidView(scene, asteroid, level) {
     rotate(radians) {
       spin.rotation.y += radians;
     },
+    /**
+     * Rückstoß einer Explosion: Der Sprengpunkt (Welt) bekommt einen Stoß von der Kamera weg (die Würfel fliegen
+     * überwiegend nach vorn heraus). Drehmoment = Hebel × Kraft: um die Hochachse dreht die Figur kurz schneller
+     * (läuft aus wie ein Wisch), um x/z kippt sie und federt zurück. `strength` ~ weggesprengte Masse.
+     */
+    impulse(worldPoint, strength, cameraPosition) {
+      tilt.updateMatrixWorld(true);
+      spin.getWorldPosition(centerWorld);
+      kickR.copy(worldPoint).sub(centerWorld).divideScalar(Math.max(0.001, (radius + 0.5) * size));   // Hebel, ~ −1 … 1
+      kickF.copy(worldPoint).sub(cameraPosition).normalize().multiplyScalar(strength);
+      kickT.crossVectors(kickR, kickF);
+      flingVelocity = Math.max(-FLING_MAX, Math.min(FLING_MAX, flingVelocity + kickT.y * KICK_SPIN));
+      wobble.vx += kickT.x * KICK_WOBBLE;
+      wobble.vz += kickT.z * KICK_WOBBLE;
+    },
     /** Schwung nach dem Wischen (rad/s): dreht weiter und läuft weich aus; 0 = sofort anhalten (angefasst) */
     fling(radiansPerSecond) {
       flingVelocity = Math.max(-FLING_MAX, Math.min(FLING_MAX, radiansPerSecond));
@@ -205,7 +229,12 @@ export function createAsteroidView(scene, asteroid, level) {
       appear += dt;
       const grow = vanish === null ? easeOutBack(appear / APPEAR) : 1 - easeInCubic((vanish += dt) / VANISH);
       tilt.scale.setScalar(Math.max(0.001, grow));
-      tilt.rotation.set(TILT + waves(TUMBLE_X, time), 0, waves(TUMBLE_Z, time));
+      // Rückstoß-Wippen: gedämpfte Feder zurück in die Ruhelage
+      for (const [a, v] of [['x', 'vx'], ['z', 'vz']]) {
+        wobble[v] += (-WOBBLE_SPRING * wobble[a] - WOBBLE_DAMPING * wobble[v]) * dt;
+        wobble[a] += wobble[v] * dt;
+      }
+      tilt.rotation.set(TILT + waves(TUMBLE_X, time) + wobble.x, 0, waves(TUMBLE_Z, time) + wobble.z);
       tilt.position.set(waves(SWAY_X, time), baseY + waves(SWAY_Y, time), 0);
 
       if (dying.size) {

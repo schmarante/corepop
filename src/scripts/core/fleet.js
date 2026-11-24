@@ -1,7 +1,7 @@
 // Die Schiffe eines Levels: Pro Farbe gibt es Munition für alle Voxel plus eine Reserve (`level.reserve`, Anteil;
 // Farben mit weniger als MIN_AMMO Voxeln bekommen ein zweites Schiff), denn aussortierte Schiffe sind weg (game.slide).
-// Die Reserve-Schüsse mischen sich in alle Tiefen. Die Voxel werden von außen nach innen in Pakete geschnitten und nach Schicht sortiert auf die Spalten verteilt – eine Spalte je Hangar-Plattform
-// (das vorderste Schiff einer Spalte fliegt nur auf die Plattform darüber, siehe game.js).
+// Die Reserve-Schüsse mischen sich in alle Tiefen. Die Voxel werden von außen nach innen in Pakete geschnitten und grob nach Schicht sortiert in eine Reihenfolge
+// gebracht – so kommen sie aufs Förderband (game.js).
 //
 // Schwierigkeit: `level.shuffle` (0 … 1) mischt die Reihenfolge. Bei 0 steht fast immer vorn, was gerade freiliegt –
 // blindes Antippen reicht. Je höher, desto öfter stehen Schiffe für tiefe Kernfarben schon vorn: Startet man sie zu
@@ -22,7 +22,7 @@ export const DEFAULT_RESERVE = 0.25;
 /** Gewichte der Klassen, falls ein Level keine angibt */
 const DEFAULT_MIX = { 50: 2, 100: 1 };
 
-/** @returns {Ship[][]} Spalten, jeweils vorderstes Schiff zuerst
+/** @returns {Ship[]} Reihenfolge aufs Förderband, erstes Schiff zuerst
  *  @typedef {{ id: number, color: string, ammo: number, capacity: number, special?: 'bomber' }} Ship
  *    capacity: Klasse (50/100/250) – kleinste, in die die Munition passt (das letzte Schiff einer Farbe trägt
  *    den Rest mit, höchstens bis 250 + MIN_AMMO − 1).
@@ -70,9 +70,5 @@ export function createFleet(asteroid, level, rng) {
     }
   }
   packs.sort((a, b) => a.sortKey - b.sortKey);
-  const columns = Array.from({ length: level.slots }, () => []);
-  packs.forEach(({ color, ammo, capacity, special }, id) =>
-    columns[id % level.slots].push(special ? { id, color, ammo, capacity, special } : { id, color, ammo, capacity }),
-  );
-  return columns;
+  return packs.map(({ color, ammo, capacity, special }, id) => (special ? { id, color, ammo, capacity, special } : { id, color, ammo, capacity }));
 }

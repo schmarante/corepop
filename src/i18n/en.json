@@ -10,7 +10,7 @@
   },
   "home": {
     "claim": "Crack the core – colour by colour.",
-    "intro": "Tap spaceships – they only hit blocks of their own color on the very outside. Swipe the row sideways, but careful: whatever drops off is gone.",
+    "intro": "Tap ships on the conveyor belt – they only hit blocks of their own colour on the very outside. But careful: whatever falls off the belt is gone.",
     "play": "Play",
     "continue": "Continue with level {n}",
     "levels": "Levels",
@@ -20,20 +20,20 @@
     "level": "Level {n}",
     "progress": "Progress",
     "stage": "Playfield: figure, hangar and ship queue. Keys 1 to 5 launch a ship, arrow keys slide the front row.",
-    "hint": "Tap a ship – it flies to the pad above. Swipe the front row sideways: whatever drops off is gone. Red number: its color would run short without it. Swipe above to turn the figure.",
+    "hint": "Tap a ship on the belt – it flies to a free pad. It only hits blocks of its colour on the very outside. Whatever falls off the left end is gone.",
     "more": "+{count}",
     "won": "Popped!",
     "allDone": "All levels done! 🚀",
     "lost": "Hangar jammed!",
-    "lostText": "Every pad is taken, and no ship can find a block of its color on the very outside. Only launch ships when enough of their color is on the outside – slide the others aside until then.",
-    "lostAmmo": "Too many discarded!",
-    "lostAmmoText": "There isn't enough ammo left for {color}. Ships with a red number are still needed – don't slide them off.",
+    "lostText": "Every pad is taken, and no ship can find a block of its colour on the very outside. Only launch ships when enough of their colour is on the outside.",
+    "lostAmmo": "Fell off the belt!",
+    "lostAmmoText": "There isn't enough ammo left for {color}. Keep an eye on which ships are still needed – and launch them before they fall off the belt.",
     "next": "Next level",
     "again": "Try again",
     "fromStart": "Start over",
     "noWebgl": "Sorry, your browser cannot show 3D graphics.",
     "breakOff": "Direct hit! Charge detonated",
-    "bomberGone": "Bomber discarded – a crystal went dark"
+    "bomberGone": "Bomber fell off the belt – a crystal went dark"
   },
   "colors": {
     "w": "Silver",
@@ -59,6 +59,8 @@
   "about": {
     "title": "About corepop",
     "intro": "corepop is a colour puzzle: your spaceships take block figures apart layer by layer. Every ship only hits its own colour.",
+    "author": "Author",
+    "email": "Email",
     "privacy": "No sign-up, no ads. Your progress stays on your device only.",
     "openSource": "corepop is built with great open-source projects. Thanks to everyone who contributes to them!",
     "runtime": "In the game",
@@ -85,13 +87,13 @@
       "name": "Supernova",
       "hint": "A huge explosion tears the figure open."
     },
-    "pick": "Tap a ship – the hull turns into its color",
+    "pick": "Tap a ship on the belt – the hull turns into its colour",
     "unlocked": "{name} unlocked!"
   },
   "stars": {
     "label": "{count} of 3 stars",
-    "two": "At most half of the reserve discarded",
-    "three": "Hardly anything discarded, no bomber wasted"
+    "two": "At most 4 misfires",
+    "three": "At most 1 misfire, no bomber lost"
   },
   "design": {
     "title": "Ships",

@@ -6,9 +6,9 @@ import { createGame } from '../core/game.js';
 import { createStage } from '../render/stage.js';
 import { createAsteroidView } from '../render/asteroid-view.js';
 import { createHangarView } from '../render/hangar-view.js';
-import { createQueueView } from '../render/queue-view.js';
+import { createBeltView } from '../render/belt-view.js';
 import { createEffectsView } from '../render/effects-view.js';
-import { attachQueueInput } from '../ui/queue-input.js';
+import { attachBeltInput } from '../ui/belt-input.js';
 import { createHud } from '../ui/hud.js';
 import { createDialog } from '../ui/dialog.js';
 import { createToast } from '../ui/toast.js';
@@ -27,8 +27,8 @@ export function startSolo(root, locale) {
 
   let index = 0;
   let game = null;
-  let views = null;   // { asteroid, hangar, queue, effects } – pro Level neu
-  let outgoing = [];  // Ansichten des vorigen Levels, die noch herausschrumpfen: { views, slots, columns }
+  let views = null;   // { asteroid, hangar, belt, effects } – pro Level neu
+  let outgoing = [];  // Ansichten des vorigen Levels, die noch herausschrumpfen: { views, game }
 
   let stage;
   try {
@@ -50,18 +50,17 @@ export function startSolo(root, locale) {
   const hud = createHud(root, t);
   const dialog = createDialog($('[data-dialog]'));
   const toast = createToast($('[data-toast]'));
-  // Bildschirmpunkt → Spalte der Warteschlange (fragt die Darstellung); null = darüber, dort dreht Wischen die Figur
+  // Bildschirmpunkt → Flieger auf dem Band (fragt die Darstellung); null = nicht über dem Band, dort dreht Wischen
   const ndc = new THREE.Vector2();
-  function pickColumn(x, y) {
+  function pickShip(x, y) {
     if (!views) return null;
     const box = canvas.getBoundingClientRect();
     ndc.set(((x - box.left) / box.width) * 2 - 1, -((y - box.top) / box.height) * 2 + 1);
-    const hit = views.queue.pick(ndc, stage.camera);
-    return hit && { column: hit.column, stepPx: (hit.step / 2) * box.width };
+    return views.belt.pick(ndc, stage.camera);
   }
-  attachQueueInput(canvas, { pick: pickColumn, onLaunch: launch, onSlide: slide });
+  attachBeltInput(canvas, { pick: pickShip, onLaunch: launch, visibleIds: () => (game ? views.belt.visibleIds(game.belt) : []) });
   attachDragRotate(canvas, radians => views?.asteroid.rotate(radians), {
-    accept: e => !pickColumn(e.clientX, e.clientY),
+    accept: e => !pickShip(e.clientX, e.clientY),
     onFling: velocity => views?.asteroid.fling(velocity),   // loslassen: dreht nach und läuft aus
   });
   const options = document.querySelector('[data-options]');   // Optionen offen → Spiel pausiert
@@ -74,7 +73,7 @@ export function startSolo(root, locale) {
   function placeViews({ asteroidY, hangarY } = stage.anchors) {
     views?.asteroid.setY(asteroidY);
     views?.hangar.setY(hangarY);
-    views?.queue.setY(hangarY);
+    views?.belt.setY(hangarY);
     if (views) {
       // Sonnenschatten folgt der Figur (voller Radius – beim Laden wächst sie erst herein)
       const radius = views.asteroid.radius;
@@ -88,15 +87,15 @@ export function startSolo(root, locale) {
       // altes Level schrumpft weg, statt zu verschwinden; Effekte (Schüsse, Funken) enden sofort
       views.asteroid.vanish();
       views.hangar.vanish();
-      views.queue.vanish();
+      views.belt.vanish();
       views.effects.dispose();
-      outgoing.push({ views, slots: game.slots, columns: game.columns });
+      outgoing.push({ views, game });
     }
     game = createGame(LEVELS[i]);
     views = {
       asteroid: createAsteroidView(stage.scene, game.asteroid, game.level),
       hangar: createHangarView(stage.scene, game.level.slots),
-      queue: createQueueView(stage.scene, game.level.slots, { moreText: count => t('game.more', { count }), design: shipDesign() }),
+      belt: createBeltView(stage.scene, game.level.slots, { moreText: count => t('game.more', { count }), design: shipDesign() }),
       effects: createEffectsView(stage.scene, stage.camera),
     };
     placeViews();
@@ -121,35 +120,33 @@ export function startSolo(root, locale) {
 
   const playing = () => game && !options?.open && !dialog.open;
 
-  function launch(column) {
+  /** Flieger vom Band starten (`slot`: die Plattform darüber, bevorzugt; null = egal) */
+  function launch(id, slot) {
     if (!playing()) return;
+    const ship = game.belt.find(item => item.ship.id === id)?.ship;
+    if (!ship) return;
     if (picking === 'recolor') {
       // Farbwechsel: dieser Flieger gibt die Farbe vor
-      const events = game.special('recolor', column);
-      if (!events.length) return views.queue.shake(column);
+      const events = game.special('recolor', id);
+      if (!events.length) return views.belt.shake(ship);
       setPicking(null);
       handle(events);
       refreshSpecials();
       return;
     }
-    const status = game.canLaunch(column);
-    if (status === 'full') views.queue.shake(column);
+    const status = game.canLaunch(id);
+    if (status === 'full') views.belt.shake(ship);
     if (status !== 'ok') return;
-    handle(game.launch(column));
+    handle(game.launch(id, slot ?? 0));
     hint.done();
-  }
-
-  function slide(dir) {
-    if (!playing()) return;
-    handle(game.slide(dir));
   }
 
   function handle(events) {
     for (const e of events) {
-      if (e.type === 'launch') views.hangar.add(e.slot, e.ship, views.queue.take(e.ship));
-      else if (e.type === 'slide') {
-        if (e.out) views.queue.eject(e.out, e.dir);
-        if (e.out?.special === 'bomber') toast.show(t('game.bomberGone'));
+      if (e.type === 'launch') views.hangar.add(e.slot, e.ship, views.belt.take(e.ship));
+      else if (e.type === 'drop') {
+        views.belt.drop(e.ship);
+        if (e.ship.special === 'bomber') toast.show(t('game.bomberGone'));
       } else if (e.type === 'defuse') views.asteroid.defuse(e.crystal);
       else if (e.type === 'pad') views.hangar.addPad(e.slot);
       else if (e.type === 'recolor') views.asteroid.recolor(e.voxels);
@@ -171,6 +168,8 @@ export function startSolo(root, locale) {
         const at = views.asteroid.worldPosition(e.crystal);
         views.effects.explode(at, at.clone().sub(body.center).normalize(), [...new Set(e.voxels.map(v => v.color))], views.asteroid.size);
         views.effects.shatter(e.voxels, views.asteroid.matrixWorld, views.asteroid.size, body, at, e.energy, e.mass, views.asteroid);
+        // Rückstoß: die Figur dreht und kippt kurz – je mehr Masse wegfliegt, desto stärker (Supernova am meisten)
+        views.asteroid.impulse(at, Math.min(1.6, e.mass.reduce((sum, m) => sum + m, 0) / 350), stage.camera.position);
         stage.shake(e.nova ? 1 : 0.7);
         if (!e.nova) toast.show(t('game.breakOff'));
         updateHud();
@@ -235,14 +234,14 @@ export function startSolo(root, locale) {
   }
 
   stage.run(dt => {
-    outgoing = outgoing.filter(({ views: old, slots, columns }) => {
+    outgoing = outgoing.filter(({ views: old, game: was }) => {
       old.asteroid.update(dt);
-      old.hangar.update(slots, dt);
-      old.queue.update(columns, slots, dt);
-      if (!old.asteroid.gone || !old.hangar.gone || !old.queue.gone) return true;
+      old.hangar.update(was.slots, dt);
+      old.belt.update(was.belt, was.queue.length, 0, dt);
+      if (!old.asteroid.gone || !old.hangar.gone || !old.belt.gone) return true;
       old.asteroid.dispose();
       old.hangar.dispose();
-      old.queue.dispose();
+      old.belt.dispose();
       return false;
     });
     if (!game || options?.open) return;
@@ -250,7 +249,9 @@ export function startSolo(root, locale) {
     views.asteroid.update(dt);
     handle(game.step(dt, views.asteroid.cameraInGrid(stage.camera), shipInGrid));
     views.hangar.update(game.slots, dt);
-    views.queue.update(game.columns, game.slots, dt, game.essential);
+    views.belt.update(game.belt, game.queue.length, game.state === 'play' ? game.beltSpeed : 0, dt, {
+      finished: ship => !game.asteroid.aliveByColor.get(ship.color),   // Farbe fertig: grau (Falle)
+    });
     views.effects.update(dt, game.shots, (shot, target, normal) => {
       views.asteroid.worldPosition(shot.voxel, target);
       views.asteroid.normalToWorld(shot.normal, normal);

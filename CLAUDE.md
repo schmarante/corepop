@@ -27,20 +27,22 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   schräg Sichtbare. **Nur eigene Designs** – keine erkennbaren fremden Marken/Designs, auch nicht verpixelt.
 - Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Ziehen dreht zusätzlich; beim Loslassen dreht er mit dem Schwung weiter und läuft weich aus
   (`ui/drag-rotate.js` misst die Wischgeschwindigkeit → `asteroid.fling`, Reibung `FLING_FRICTION`; Anfassen hält an).
-- Unten stehen echte 3D-Flieger (`render/queue-view.js`) in Spalten, die Munition als Zahl auf dem Rumpf. **Je
-  Hangar-Plattform eine Spalte darunter** (`level.slots`, 3–5). Nur das vorderste Schiff einer Spalte ist antippbar und
-  fliegt **nur auf die Plattform direkt darüber** (belegt → wackelt, vorderes Schiff ist abgedunkelt).
-- **Seitlich wischen (seit 2026-11-24)** schiebt die vorderste Reihe um einen Platz je Spaltenbreite (`game.slide`,
-  `ui/queue-input.js`, Tasten ←/→, 1–9 startet). Das am Rand hinausgeschobene Schiff ist aussortiert und **weg**
-  (kein endloses Nachrutschen). Dafür hat jede Farbe Reserve-Munition (`level.reserve`, Standard 25 %, `DEFAULT_RESERVE`
-  in `core/fleet.js`; Farben unter 50 Voxeln bekommen zwei gleiche Schiffe). Sortiert man ein Schiff aus, ohne das seine Farbe nicht
-  mehr reicht (`game.essential`), ist das Spiel **verloren** (`lost`, reason `ammo`: „Zu viel aussortiert!“) – man soll
-  sich ins Aus manövrieren können (Wunsch des Users). Warnung: Randschiffe, die noch gebraucht werden, haben eine rote
-  Zahl. (Verworfen: endloses Hintenanstellen; Haken der Reihe bei unverzichtbaren Schiffen – zu einfach.) Ein aussortierter
-  **Spreng-Flieger**: einer seiner Kristalle wird zum normalen Block seiner Schichtfarbe (`baseColor`, Munition +1
-  beim hintersten Schiff dieser Farbe, sonst zerfällt er).
-  So muss man entscheiden, ob man den Bomber hält, bis sein Kristall freiliegt. Wischen über der Warteschlange schiebt,
-  darüber dreht es die Figur.
+- **Förderband (seit 2026-11-24, ersetzt „Spalte = Plattform + Wischen“):** Unter dem Deck läuft ein Band mit
+  `BELT_LENGTH` (8) sichtbaren Plätzen nach links (`level.belt` Plätze/s, `DEFAULT_BELT_SPEED`; `core/game.js` →
+  `belt`, `queue` = Luke). Neue Flieger kommen rechts aus der Luke, je ein Platz Abstand; nimmt man einen heraus,
+  bleibt die Lücke. **Jeder Flieger auf dem Band ist antippbar** und fliegt auf **irgendeine freie Plattform**
+  (bevorzugt die darüber; keine frei → wackelt). Was links ankommt, **fällt herunter und ist weg** (`drop`): Dafür hat
+  jede Farbe Reserve-Munition (`level.reserve`, Standard 25 %, `DEFAULT_RESERVE` in `core/fleet.js`; Farben unter 50
+  Voxeln bekommen zwei gleiche Schiffe). Fällt ein Flieger, ohne den seine Farbe nicht mehr reicht (`game.essential`
+  – bewusst **ohne Warnung** auf dem Band, sonst wüsste man, was man als Nächstes drückt), ist das Spiel **verloren** (`lost`, reason `ammo`: „Vom Band gefallen!“). Ein
+  heruntergefallener **Spreng-Flieger** entschärft einen Kristall (wird normaler Block seiner Schichtfarbe,
+  `baseColor`, Munition +1 beim hintersten Schiff dieser Farbe, sonst zerfällt er).
+  Darstellung `render/belt-view.js` (Band mit laufenden Streifen, Rollen, Luke mit „+n“; Flieger liegen klein in
+  Parkstellung, wachsen aus der Luke, stürzen am Ende taumelnd ab, heben beim Start ab und richten sich auf; Flieger
+  fertiger Farben grau), Bedienung `ui/belt-input.js` (Antippen, Tasten 1–9);
+  über dem Band dreht Wischen die Figur.
+  Verworfen nach Spieltest: **Spalte = Plattform + vorderste Reihe wischen** – zu umständlich (erst schieben, dann
+  starten), mittlere Spalten hingen fest, Wischen wirkte wie Strafe, schwer lesbar. Davor: Parkdeck (UI-Reihe zu viel).
 - Schiffsklassen 50/100/250 (`SHIP_CLASSES`, `MIN_AMMO` = 50 in `core/fleet.js`): Kleinere lohnen nicht, ein Rest
   unter 50 fliegt im vorigen Schiff derselben Farbe mit (nur Farben mit < 50 Blöcken insgesamt ergeben ein kleineres).
 - Ein Schiff im Slot schießt automatisch nur auf Voxel seiner Farbe, die **ganz außen** liegen: vor einer freien Fläche
@@ -83,11 +85,10 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   Stelle beleuchtet (`effects-view.js` → `flash`: 3 feste Punktlichter reihum – Lichter hinzufügen/entfernen würde die
   Shader neu übersetzen –, dazu ein Glanzpunkt). Dazu Blitz, Druckwelle, Funken. Erreicht die
   Druckwelle einen weiteren Kristall, geht der mit hoch. (Früher: fester Kugel-Brocken, der als Ganzes wegflog.) Sichtbare Kristalle werden bevorzugt beschossen.
-- **Ist eine Farbe fertig, bleiben ihre übrigen Schiffe stehen (Falle, Wunsch des Users):** in der Warteschlange
-  muss man sie hinausschieben (kostet nichts); gestartet finden sie nie ein Ziel und blockieren ihre Plattform für
-  immer (`doomed` im Slot). Wer schon auf der Plattform steht, wenn seine Farbe fertig wird, fliegt ab – sonst würde
-  die Reserve fast jede Farbe zur Dauerblockade machen. (Früher: „+n übersprungen“, automatisch entfernt.)
-- Die Munition pro Farbe = Voxelanzahl + Reserve (siehe oben). Die Pakete werden von außen nach innen geschnitten und grob nach Schicht sortiert auf die Spalten verteilt (machbar, aber nicht garantiert lösbar).
+- **Ist eine Farbe fertig, bleiben ihre übrigen Schiffe auf dem Band (Falle, Wunsch des Users):** grau dargestellt,
+  gestartet finden sie nie ein Ziel und blockieren ihre Plattform für immer (`doomed` im Slot) – man lässt sie
+  herunterfallen (kostet nichts). Wer schon auf der Plattform steht, wenn seine Farbe fertig wird, fliegt ab.
+- Die Munition pro Farbe = Voxelanzahl + Reserve (siehe oben). Die Pakete werden von außen nach innen geschnitten und grob nach Schicht sortiert in die Band-Reihenfolge gebracht (machbar, aber nicht garantiert lösbar).
 
 ## Technik
 - **Astro 7 + Tailwind 4**, statische Seiten (`output: 'static'`), Three.js als npm-Paket. Aufbau wie `../wyrfl`.
@@ -112,9 +113,9 @@ src/
     core/    REINE Spiellogik: kein three.js, kein DOM, kein Math.random() → testbar, deterministisch per Seed
              rng · colors · levels · asteroid (Voxel, Freiliegen, facing, Kristalle) · fleet (Munitions-Pakete) · game (Ablauf)
     render/  Darstellung, liest nur aus core: stage (Layout-Stapel Körper/Deck/Schlange) · asteroid-view · hangar-view ·
-             queue-view (3D-Warteschlange, gibt Modelle beim Start an den Hangar) · ship-model · effects-view (Schüsse,
+             belt-view (3D-Förderband, gibt Modelle beim Start an den Hangar) · ship-model · effects-view (Schüsse,
              Funken, Bruchstücke) · starfield · frame-loop · easing
-    ui/      Bedienung/DOM: queue-input (Tippen/Wischen auf der Schlange) · drag-rotate · hud · dialog · toast · hint · icons
+    ui/      Bedienung/DOM: belt-input (Antippen auf dem Band) · drag-rotate · hud · dialog · toast · hint · icons
     store/   localStorage – Fortschritt verwürfelt + signiert wie in ../wyrfl (secure.js: `c1.<nonce>.<mac>.<data>`, an den
              Speicherschlüssel gebunden; Klartext/geänderte/kopierte Werte werden ignoriert – Schummelschutz gegen die
              Entwicklerwerkzeuge, keine echte Sicherheit). progress.js: `corepop:v1` = { unlocked }. Neue Fortschritts-
@@ -122,8 +123,8 @@ src/
     modes/   verdrahtet core + render + ui zu einem Spielmodus (solo.js; später battle.js)
 tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenztem Hangar gewinnbar“), i18n.test.js
 ```
-- `createGame(level, { seed })` liefert `launch(column)`, `slide(dir)` und `step(dt, camera)`; alle geben **Ereignisse**
-  zurück (`launch`, `slide`, `defuse`, `fire`, `hit`, `fizzle`, `break`, `leave`, `free`, `won`, `lost`). Der Modus reicht sie an Darstellung/UI weiter –
+- `createGame(level, { seed })` liefert `launch(shipId, prefer)` und `step(dt, camera)`; alle geben **Ereignisse**
+  zurück (`launch`, `drop`, `defuse`, `fire`, `hit`, `fizzle`, `break`, `leave`, `free`, `won`, `lost`). Der Modus reicht sie an Darstellung/UI weiter –
   im Battle-Modus später auch ans Netzwerk.
 - Sichtbarkeit: Die Logik bekommt die Kameraposition im Voxel-Raster (`asteroidView.cameraInGrid(camera)`) und
   rechnet die Ausrichtung selbst. Konstanten: `FACING`, `BLOCKED_AFTER` und `TIMING` in `core/game.js`.
@@ -133,10 +134,10 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 ## Grundsätze (Priorität)
 - **Nichts poppt rein oder raus.** Alles, was erscheint, verschwindet oder sich ändert, bekommt einen Übergang –
   kurz (150–300 ms) ist okay, hart nie. Beispiele: Voxel schrumpfen weg, Asteroid wächst beim Laden hinein und
-  schrumpft beim Levelwechsel heraus, Hangar-Ringe/Labels blenden, Warteschlange gleitet (`render/queue-view.js`),
+  schrumpft beim Levelwechsel heraus, Hangar-Ringe/Labels blenden, Flieger fahren aufs Band und stürzen ab (`render/belt-view.js`),
   Dialoge/Menüs/Toasts blenden (`@starting-style`, `allow-discrete`), Seitenwechsel per `@view-transition`,
   Canvas blenden ein (`.fade-in`), skriptabhängige Inhalte per `.reveal`. Easing-Kurven: `render/easing.js`.
-  Warteschlange (3D): Schiffe gleiten an ihren Platz, neue wachsen herein, aussortierte fliegen seitlich hinaus.
+  Förderband (3D): Flieger wachsen aus der Luke, fahren gleichmäßig, stürzen am Ende taumelnd ab.
   Bei `prefers-reduced-motion` Bewegung weglassen, Überblendungen dürfen bleiben.
 - **Performance/Akku:** Jede Animation läuft über `render/frame-loop.js` mit fester Bildrate: Spiel `GAME_FPS` = 60,
   Hintergrund `BACKGROUND_FPS` = 30. Pixel-Ratio gedeckelt (Bühne 2, Sterne 1.5). Animationen bildratenunabhängig
@@ -150,7 +151,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   nachgerechnet und weich übergeblendet) und **Sonnenschatten** auf der Figur und den Explosionswürfeln (die
   werfen und empfangen ihn; Shadow-Map 1024, PCF-weich, `stage.aimShadow` folgt der Figur; Flieger/Deck ohne). Nur von außen sichtbare Voxel werden gezeichnet.
 - Hangar = Deck mit Landeplattformen (`render/hangar-view.js`), Schiff = eigenes Candy-Modell (`render/ship-model.js`),
-  darunter die Warteschlange aus denselben Modellen (Zahl auf dem Rumpf; auf der Plattform wandert sie in die Blase).
+  darunter das Förderband mit denselben Modellen (Zahl auf dem Rumpf; auf der Plattform wandert sie in die Blase).
 - Logo hüpft alle 3,6 s wie Gummi (ducken, strecken, platt landen; „pop“ etwas später) – `@keyframes logo-bounce` am
   Wort (`.logo-word`). Das „o“ in „pop“ ist der Spreng-Kristall in WebGL (`render/logo-gem.js`: Candy-Würfel, leicht
   durchscheinend, Klarlack, pulsiert, dreht sich), wächst nach dem Laden heraus und schiebt die „p“ auseinander, ragt
@@ -165,37 +166,34 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   `disabled` oder `.is-waiting`. Reine Icon-Buttons (Zurück, Sprache) bleiben flach.
 
 ## Freispielen (seit 2026-11-24)
-- **Sterne pro Level** (`game.stars()`, `game.stats`): ★ geschafft · ★★ höchstens `STAR_TWO` (50 %) der Reserve
-  aussortiert · ★★★ höchstens `STAR_THREE` (15 %) und kein Spreng-Flieger verschenkt. Bestwert je Level gespeichert,
+- **Sterne pro Level** (`game.stars()`, `game.stats`): ★ geschafft · ★★ höchstens `STAR_TWO` (4) Fehlstarts ·
+  ★★★ höchstens `STAR_THREE` (1) Fehlstart und kein Spreng-Flieger heruntergefallen. Fehlstart = gestarteter Flieger,
+  der mit Munition blockiert stehen blieb (`stats.misfires`). Bestwert je Level gespeichert,
   im Sieg-Dialog (leuchten nacheinander auf) und auf den Level-Knöpfen der Startseite.
 - **Specials** (je Levelversuch einmal, `game.special(id, …)`; Leiste rechts unter der Kopfzeile, `ui/specials.js`),
   freigeschaltet nach Level (`SPECIALS` in `store/progress.js`): **Plattform +1** ab L3 (schwebende Zusatz-Plattform
-  rechts oberhalb des Decks; jedes vordere Schiff darf hin, wenn seine belegt ist), **Farbwechsel** ab L5 (Knopf, dann
-  Flieger antippen: bis zu 60 äußerste Blöcke anderer Farben bekommen seine Farbe, er die Schüsse dazu), **Supernova**
+  rechts oberhalb des Decks – eine Plattform mehr), **Farbwechsel** ab L5 (Knopf, dann
+  Flieger auf dem Band antippen: bis zu 60 äußerste Blöcke anderer Farben bekommen seine Farbe, er die Schüsse dazu), **Supernova**
   ab L7 (Riesen-Explosion am vordersten Punkt, `blastPower` × 1,9).
 - **Flieger-Designs** (`render/ship-model.js`, Option `design`): classic, paper (6 ★), gummy (14 ★), rocket (24 ★),
   ufo (34 ★) – `DESIGNS` in `store/progress.js`, Auswahl im Optionen-Dialog (gilt ab dem nächsten Level).
 - Spielstand: `corepop:v1` = { unlocked, stars, design }, verwürfelt + signiert (`store/secure.js`).
 
 ## Schwierigkeit / Balancing
-- `src/scripts/core/simulate.js`: Spiel ohne Grafik mit Bots – `random` (tippt blind; ist die Plattform belegt, schiebt er bei 30 %
-  zufällig) und `smart` (plant auf Kopien: jetzt starten oder erst 1–8× schieben; Abzüge fürs Aussortieren nützlicher
-  Schiffe und besonders von Bombern, deren Kristall bald freiliegt; wartet, solange der Hangar arbeitet; schaufelt
-  notfalls eine Spalte frei und lässt dabei immer eine Plattform frei). Geometrie wie im Spiel.
+- `src/scripts/core/simulate.js`: Spiel ohne Grafik mit Bots – `random` (tippt blind) und `smart` (siehe Stand unten).
+  Geometrie wie im Spiel.
 - `ddev exec node scripts/balance.mjs [level] [seeds]` → Gewinnquoten beider Bots je Level (0 = alle; Standard 8 Seeds).
 - Regler pro Level: **`slots`** (wichtigster Hebel: 5 → 4 → 3), `shuffle` (0 … 1.8, mischt tiefe Kernschiffe nach
   vorn, `core/fleet.js`), `spin`, `ships` (Mischung der Schiffsklassen 50/100/250, `SHIP_CLASSES`; dazu je
   Spreng-Block ein Spreng-Flieger), `skin`, `core`. 2 Plattformen waren selbst für den schlauen Bot meist unlösbar.
-- **Stand 2026-11-24 (Spalte = Plattform, Aussortiertes weg, Reserve 25 % – L1 100 %, L2 50 %; 8 Seeds):** schlauer
-  Bot 100 % (L1–3, L7–9, Pilz), 88 % Häufchen/Rakete/Teddy/Truhe, 75 % Pirat/Huhn (Schusstakt 0,06 s, Sprengsatz mit
-  Energiemodell). Zufalls-Bot (schiebt blind, wenn die Plattform belegt ist) 0–13 % überall – er
-  ignoriert die roten Zahlen und sortiert Unverzichtbares aus. Ob L1 für Menschen leicht genug ist, nur per Spieltest.
-  Messrauschen bei 8 Seeds groß (±1–2 Seeds), `balance.mjs 0 24` ist verlässlicher.
+- **Stand 2026-11-24 (Förderband, 24 Seeds, Reserve 0,25):** schlauer Bot 96–100 % auf allen Leveln, Zufall 79 % (L1)
+  → 38–46 % (L2–5) → 13–33 % (L7–13), Boss 4 %. Ein Schiff ist bei Tempo 0,25 ca. 32 s auf dem Band. Levelzeit ≈
+  Schiffszahl ÷ Tempo (Lücken schließen sich nicht; Boss ~280 s) – Idee: Band beschleunigen, wenn es fast leer ist.
+  250er-Schiffe nur noch in L2 und beim Boss (feuern lange, in kleinen Farben sofort unverzichtbar). Regler pro Level
+  jetzt auch `belt` (Tempo). Bots (`simulate.js`): `random` tippt blind, `smart` rettet unverzichtbare Schiffe kurz vor
+  dem Bandende, startet sonst das nützlichste, hält dafür eine Plattform frei, startet nie Schiffe fertiger Farben.
 - Kernschichten: gleichmäßig über die Tiefe, innere wachsen aber nach außen, bis jede Farbe ≥ 50 Voxel hat
   (`MIN_LAYER` in `core/asteroid.js`) – sonst hatten schmale Figuren innen 1–30 Voxel (Mini-Schiffe).
-- Bekannte Falle: Schieben holt nur an den Rändern neue Schiffe nach vorn. Steht in einer mittleren Spalte ein Schiff
-  blockiert auf der Plattform (z. B. ein zu früh gestarteter Bomber) und die nötigen Schiffe stecken dahinter, geht es
-  nicht weiter, obwohl noch eine Plattform frei ist – man verliert erst, wenn man den Rest auch noch blockiert.
 - Leistung: `asteroid.targets` (freiliegende lebende Voxel je Farbe) wird laufend gepflegt – die Zielsuche geht nur
   diese durch.
 
@@ -222,7 +220,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - Testen im Browser ohne Klicken: headless Chromium per DevTools-Pipe (rAF läuft in `--virtual-time-budget` NICHT).
 - Spielbildschirm ist Vollbild (`Base fullscreen`, `h-dvh`), Safe-Areas über `env(safe-area-inset-*)`.
 - Die Bühne passt sich per ResizeObserver an ihren Container an; der Kameraabstand richtet sich nach
-  Breite (Deck mit 5 Plattformen) bzw. Höhe (Stapel Körper → Deck → Warteschlange, `STACK` in `render/stage.js`).
+  Breite (Deck mit 5 Plattformen) bzw. Höhe (Stapel Körper → Deck → Förderband, `STACK` in `render/stage.js`).
 
 ## Multiplayer (geplant, noch nicht gebaut)
 - Battle mit bis zu 4 Spielern, Verbindung per QR-Code wie in `../wyrfl` (`src/scripts/duel/rtc.js`: WebRTC ohne

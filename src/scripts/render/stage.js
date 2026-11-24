@@ -12,15 +12,16 @@ import { startFrameLoop, GAME_FPS } from './frame-loop.js';
 const FOV = 50;
 const MIN_HALF_WIDTH = 6.2;   // so viel Welt muss links und rechts der Mitte sichtbar sein (Hangar-Reihe mit 5 Plattformen)
 // Senkrechter Stapel im freien Bereich (Welteinheiten): Körper oben, darunter Deck, darunter die Warteschlange
-// (render/queue-view.js). Was an Höhe übrig ist, verteilt sich auf die Lücken (SLACK).
+// (Förderband, render/belt-view.js). Was an Höhe übrig ist, verteilt sich auf die Lücken (SLACK).
 const STACK = {
   top: 0.4,          // Rand oben
   body: 5.2,         // halbe Höhe, die der Körper braucht (inkl. Taumeln)
   bodyToHangar: 6.3, // Körpermitte → Schiff auf der Plattform
-  hangarToEnd: 10.4, // Schiff auf der Plattform → Unterkante der Warteschlange („+n“)
+  hangarToEnd: 5.3,  // Schiff auf der Plattform → Unterkante des Förderbands (render/belt-view.js)
+  bottom: 1.6,       // Rand unten: das Band klebt nicht am Bildschirmrand
 };
-const STACK_HEIGHT = STACK.top + STACK.body + STACK.bodyToHangar + STACK.hangarToEnd;
-const SLACK = { top: 0.3, gap: 0.3 };   // Anteile der übrigen Höhe; der Rest bleibt unten frei
+const STACK_HEIGHT = STACK.top + STACK.body + STACK.bodyToHangar + STACK.hangarToEnd + STACK.bottom;
+const SLACK = { top: 0.3, gap: 0.3 };   // Anteile der übrigen Höhe; der Rest kommt unten dazu
 const SHADOW_MAP = 1024;       // Auflösung des Sonnenschattens (Figur füllt ihn ungefähr aus)
 const SUN_DIRECTION = new THREE.Vector3(6, 10, 12).normalize();
 const SHAKE_DECAY = 3.5;      // 1/s – wie schnell das Wackeln abklingt

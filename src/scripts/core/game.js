@@ -1,24 +1,22 @@
 // Spielablauf als reine Logik (ohne Grafik, ohne DOM, deterministisch per Seed).
 //
 //   const game = createGame(LEVELS[0]);
-//   game.launch(column)            → vorderstes Schiff der Spalte auf die Plattform direkt darüber (Slot = Spalte)
-//   game.slide(dir)                → vorderste Reihe um einen Platz schieben (-1 links, +1 rechts), siehe unten
-//   game.step(dt, camera, origin)  → Zeit vorspulen; liefert Ereignisse für Darstellung, UI und später das Netzwerk
+//   game.launch(shipId, prefer)    → Schiff vom Förderband auf eine freie Plattform (bevorzugt Slot `prefer`)
+//   game.step(dt, camera, origin)  → Zeit vorspulen (Band läuft, Schiffe schießen); liefert Ereignisse für Darstellung,
+//                                    UI und später das Netzwerk
 //   game.special(id, …)            → Special einsetzen (je Versuch einmal): 'pad' | 'recolor' | 'nova', siehe unten
 //   game.stars()                   → 0 … 3 Sterne (nach dem Sieg), aus game.stats
 //
-// Spalte = Plattform: Jede Spalte der Warteschlange steht unter genau einer Plattform, ihr vorderstes Schiff fliegt nur
-// dorthin. Ist die Plattform belegt, muss man warten – oder die vorderste Reihe seitlich schieben: Alle vordersten
-// Schiffe rücken einen Platz weiter, das am Rand hinausgeschobene ist aussortiert und weg (bei einem Spreng-Flieger wird
-// einer seiner Kristalle zum normalen Block, siehe defuse). In die freie Stelle am anderen Rand rückt das nächste
-// Schiff dieser Spalte nach. Die Flotte hat etwas Reserve-Munition (fleet.js). Sortiert man ein Schiff aus, ohne das
-// seine Farbe nicht mehr reicht (`essential` – die Darstellung warnt mit roter Zahl), ist das Spiel verloren: Man kann
-// sich bewusst ins Aus manövrieren.
+// Förderband: Unter dem Deck läuft ein Band mit BELT_LENGTH sichtbaren Plätzen nach links (Platz 0 = Bandende links,
+// BELT_LENGTH − 1 = Einfahrt rechts; Tempo `level.belt` Plätze/s). Neue Schiffe kommen rechts aus der Luke (`queue`),
+// je ein Platz Abstand; nimmt man eines heraus, bleibt die Lücke. Jedes Schiff auf dem Band ist antippbar und fliegt
+// auf irgendeine freie Plattform. Was links ankommt, fällt herunter und ist weg (Ereignis 'drop'). Die Flotte hat
+// etwas Reserve-Munition (fleet.js); fällt ein Schiff, ohne das seine Farbe nicht mehr reicht (`essential` – die
+// Darstellung warnt), ist das Spiel verloren. Ein heruntergefallener Spreng-Flieger entschärft einen Kristall (defuse).
 //
-// Ist eine Farbe fertig, bleiben ihre übrigen Schiffe (Reserve, Bruchstücke) in der Warteschlange stehen – eine Falle:
-// Gestartet finden sie nie ein Ziel und blockieren ihre Plattform für immer (`doomed`). Man muss sie hinausschieben
-// (das kostet nichts, sie werden nicht mehr gebraucht). Schiffe, die schon auf der Plattform stehen, wenn ihre Farbe
-// fertig wird, fliegen dagegen ab.
+// Ist eine Farbe fertig, bleiben ihre übrigen Schiffe (Reserve, Bruchstücke) auf dem Band – eine Falle: Gestartet
+// finden sie nie ein Ziel und blockieren ihre Plattform für immer (`doomed`); man lässt sie besser herunterfallen.
+// Schiffe, die schon auf der Plattform stehen, wenn ihre Farbe fertig wird, fliegen dagegen ab.
 //
 // Knobel-Regel „Hangar = Engpass“: Ein Schiff bleibt auf seiner Plattform, bis seine Munition leer ist. Findet es kein
 // Ziel ganz außen, steht es blockiert herum (BLOCKED_AFTER, für die Darstellung) und belegt die Plattform, bis seine
@@ -35,9 +33,9 @@
 // Schiff zeigen, kommen zuerst dran; so spielt die Drehung für die Reihenfolge eine Rolle.
 //
 // Ereignisse (game.step / game.launch):
-//   { type: 'launch', ship, slot }        Schiff fliegt in Slot `slot` (= Spalte)
-//   { type: 'slide', dir, out }          vorderste Reihe geschoben; `out`: aussortiertes (weggeflogenes) Schiff oder null
-//   { type: 'defuse', crystal, ship }      Kristall entschärft (Spreng-Flieger aussortiert): jetzt ein normaler Block,
+//   { type: 'launch', ship, slot }        Schiff fliegt vom Band in Slot `slot`
+//   { type: 'drop', ship }                Schiff ist am Bandende heruntergefallen (weg)
+//   { type: 'defuse', crystal, ship }      Kristall entschärft (Spreng-Flieger heruntergefallen): jetzt normaler Block,
 //                                         `ship` trägt den Schuss dafür (Munition +1)
 //   { type: 'fire', ship, slot, shot }     Schuss auf shot.voxel
 //   { type: 'hit', shot, voxel }          Voxel zerstört
@@ -46,11 +44,11 @@
 //                                         Masse (innen schwerer) → Tempo √(2E/m)
 //   { type: 'leave', ship, slot }         Munition leer (oder Farbe weg), Schiff fliegt ab
 //   { type: 'free', slot }                Slot wieder frei
-//   { type: 'pad', slot }                 Special: Zusatz-Plattform `slot` (hinter den Spalten-Plattformen)
+//   { type: 'pad', slot }                 Special: Zusatz-Plattform `slot`
 //   { type: 'recolor', ship, voxels, color }  Special Farbwechsel: `voxels` haben jetzt `color`, `ship` +Munition
 //   { type: 'won' }
 //   { type: 'lost', reason, color? }      reason 'jam': alle Plattformen mit blockierten Schiffen belegt;
-//                                         'ammo': für `color` reicht die Munition nicht mehr (zu viel aussortiert)
+//                                         'ammo': für `color` reicht die Munition nicht mehr (Schiff heruntergefallen)
 
 import { createRng } from './rng.js';
 import { createAsteroid, removeVoxel, openNormals, clearRay, hittable, blastReach, blastPower, BLAST } from './asteroid.js';
@@ -68,9 +66,14 @@ export const TIMING = {
 export const FACING = 0.2;
 const AIM_JITTER = 0.3;   // etwas Zufall bei der Zielwahl, damit nicht alle Schiffe dasselbe Muster schießen
 const CRYSTAL_PRIORITY = 1;   // ein sichtbarer Kristall wird vor allen anderen Zielen beschossen
-/** Sterne: Anteil der Reserve, der höchstens aussortiert sein darf (★★ bzw. ★★★) */
-export const STAR_TWO = 0.5;
-export const STAR_THREE = 0.15;
+/** Förderband: sichtbare Plätze, Standard-Tempo (Plätze/s, Level: `belt`), Abstand des ersten Schiffs zum Ende */
+export const BELT_LENGTH = 8;
+export const DEFAULT_BELT_SPEED = 0.2;
+const BELT_START = 2.5;   // erstes Schiff startet so weit vom Bandende – etwas Zeit zum Umschauen
+const DROP_AT = -0.5;     // Position, an der ein Schiff herunterfällt (halb über die Kante)
+/** Sterne: höchstens so viele Fehlstarts (gestartete Schiffe, die blockiert stehen blieben) für ★★ bzw. ★★★ */
+export const STAR_TWO = 4;
+export const STAR_THREE = 1;
 /** Specials: so viele Blöcke färbt der Farbwechsel höchstens um; so viel stärker als ein Kristall ist die Supernova */
 const RECOLOR_MAX = 60;
 const NOVA_POWER = 1.9;
@@ -84,23 +87,21 @@ export const BLOCKED_AFTER = 0.6;
 export function createGame(level, { seed = level.seed } = {}) {
   const rng = createRng(seed);
   const asteroid = createAsteroid(level, rng);
-  const columns = createFleet(asteroid, level, rng);
+  const queue = createFleet(asteroid, level, rng);   // Luke: Schiffe, die noch aufs Band kommen
+  /** @type {{ ship: object, pos: number }[]} Band, nach Position (0 = Bandende links) */
+  const belt = [];
+  const beltSpeed = level.belt ?? DEFAULT_BELT_SPEED;
+  for (let pos = BELT_START; pos < BELT_LENGTH && queue.length; pos++) belt.push({ ship: queue.shift(), pos });
   const aimRng = createRng(`${seed}:aim`);   // eigener Strom: Zielwahl verändert die Level-Erzeugung nicht
 
   /** @type {(null | { ship, phase: 'arriving' | 'ready' | 'leaving', t: number, cooldown: number, inFlight: number,
    *                    idle: number })[]}  idle: s seit dem letzten Schuss (≥ BLOCKED_AFTER → blockiert) */
   const slots = new Array(level.slots).fill(null);
-  /** Zusatz-Plattform (Special 'pad'): Index in `slots` oder -1 – jedes vordere Schiff darf dorthin, wenn seine
-   *  eigene Plattform belegt ist */
-  let extraSlot = -1;
   const used = new Set();   // eingesetzte Specials (je Versuch einmal)
-  /** für die Sterne: aussortierte Munition normaler Schiffe, verschenkte Spreng-Flieger, Reserve am Anfang */
-  const stats = { discarded: 0, bombersLost: 0, reserve: 0 };
-  {
-    const ammo = new Map();
-    for (const column of columns) for (const ship of column) if (!ship.special) ammo.set(ship.color, (ammo.get(ship.color) ?? 0) + ship.ammo);
-    for (const [color, n] of ammo) stats.reserve += n - (asteroid.aliveByColor.get(color) ?? 0);
-  }
+  /** Auswertung: Fehlstarts (gestartet, dann blockiert), heruntergefallene Munition, verlorene Spreng-Flieger */
+  const stats = { misfires: 0, dropped: 0, bombersLost: 0 };
+  /** alle wartenden Schiffe: auf dem Band, dann in der Luke (hinterstes zuletzt) */
+  const waiting = () => [...belt.map(item => item.ship), ...queue];
   let shots = [];
   let nextShot = 0;
   let stuckFor = 0;
@@ -150,7 +151,7 @@ export function createGame(level, { seed = level.seed } = {}) {
   /** Munition aller Schiffe einer Farbe (Warteschlange + Hangar) */
   function ammoOf(color) {
     let n = 0;
-    for (const column of columns) for (const ship of column) if (ship.color === color) n += ship.ammo;
+    for (const ship of waiting()) if (ship.color === color) n += ship.ammo;
     for (const e of slots) if (e && e.phase !== 'leaving' && e.ship.color === color) n += e.ship.ammo;
     return n;
   }
@@ -160,10 +161,10 @@ export function createGame(level, { seed = level.seed } = {}) {
     for (const shot of shots) if (shot.voxel.alive && shot.voxel.color === color) n--;
     return n;
   }
-  /** Munition übrig über den Bedarf hinaus (Spreng-Farbe: Kristalle entschärfen sich beim Aussortieren, nie knapp) */
+  /** Munition übrig über den Bedarf hinaus (Spreng-Farbe: Kristalle entschärfen sich beim Herunterfallen, nie knapp) */
   const spare = color => (color === BLAST ? Infinity : ammoOf(color) - needOf(color));
 
-  /** Ein Spreng-Flieger wurde aussortiert: Einer seiner Kristalle (bevorzugt einer, der noch nicht freiliegt) wird zum
+  /** Ein Spreng-Flieger ist heruntergefallen: Einer seiner Kristalle (bevorzugt einer, der noch nicht freiliegt) wird zum
    *  normalen Block seiner Schichtfarbe – sonst bliebe er unzerstörbar. Den Schuss dafür bekommt das hinterste Schiff
    *  dieser Farbe (Munition = Voxelzahl bleibt exakt). Gibt es keins mehr, zerfällt der Kristall einfach. */
   function defuse(events) {
@@ -172,7 +173,7 @@ export function createGame(level, { seed = level.seed } = {}) {
     if (!crystal) return;
     const color = crystal.baseColor;
     let carrier = null;
-    for (const column of columns) for (const ship of column) if (ship.color === color) carrier = ship;
+    for (const ship of waiting()) if (ship.color === color) carrier = ship;   // das hinterste
     carrier ??= slots.find(e => e && e.phase !== 'leaving' && e.ship.color === color)?.ship ?? null;
     if (!carrier) {
       removeVoxel(asteroid, crystal);
@@ -191,7 +192,10 @@ export function createGame(level, { seed = level.seed } = {}) {
   return {
     level,
     asteroid,
-    columns,
+    /** Förderband ({ ship, pos }, nach Position) und Luke (Schiffe, die noch kommen) – nur lesen */
+    belt,
+    queue,
+    beltSpeed,
     slots,
     get state() {
       return state;
@@ -203,54 +207,37 @@ export function createGame(level, { seed = level.seed } = {}) {
       return asteroid.total - asteroid.alive;
     },
 
-    /** Wird dieses Schiff noch gebraucht (ohne es hätte seine Farbe zu wenig Munition)? Aussortieren = verloren. */
+    /** Wird dieses Schiff noch gebraucht (ohne es hätte seine Farbe zu wenig Munition)? Herunterfallen = verloren. */
     essential(ship) {
       return !!ship && spare(ship.color) < ship.ammo;
     },
-    /** Munition einer Farbe über den Bedarf hinaus (Reserve, die man noch aussortieren darf) */
+    /** Munition einer Farbe über den Bedarf hinaus (Reserve, die noch herunterfallen darf) */
     spare,
 
-    /** Kann das vorderste Schiff dieser Spalte gestartet werden? 'ok' | 'full' (Plattform darüber belegt) | 'empty' | 'over' */
-    canLaunch(column) {
+    /** Kann dieses Schiff vom Band starten? 'ok' | 'full' (keine Plattform frei) | 'gone' (nicht auf dem Band) | 'over' */
+    canLaunch(shipId) {
       if (state !== 'play') return 'over';
-      if (!columns[column]?.length) return 'empty';
-      return !slots[column] || (extraSlot >= 0 && !slots[extraSlot]) ? 'ok' : 'full';
-    },
-
-    /** Startet das vorderste Schiff einer Spalte auf die Plattform darüber. @returns {object[]} Ereignisse (leer, wenn nicht möglich) */
-    launch(column) {
-      if (this.canLaunch(column) !== 'ok') return [];
-      const slot = slots[column] ? extraSlot : column;   // eigene Plattform belegt → Zusatz-Plattform
-      const ship = columns[column].shift();
-      // doomed: seine Farbe ist schon fertig – es findet nie ein Ziel und blockiert die Plattform für immer
-      slots[slot] = { ship, phase: 'arriving', t: 0, cooldown: 0, inFlight: 0, idle: 0, doomed: colorGone(ship.color) };
-      return [{ type: 'launch', ship, slot, column }];
+      if (!belt.some(item => item.ship.id === shipId && item.pos <= BELT_LENGTH - 0.5)) return 'gone';
+      return slots.includes(null) ? 'ok' : 'full';
     },
 
     /**
-     * Schiebt die vorderste Reihe um einen Platz (dir -1 = nach links, +1 = nach rechts). Das am Rand hinausgeschobene
-     * Schiff ist aussortiert, am anderen Rand rückt das nächste Schiff der Spalte nach. @returns {object[]} Ereignisse
+     * Startet ein Schiff vom Band auf eine freie Plattform – `prefer` (z. B. die darüber), sonst die nächste freie.
+     * @returns {object[]} Ereignisse (leer, wenn nicht möglich)
      */
-    slide(dir) {
-      const events = [];
-      if (state !== 'play' || (dir !== -1 && dir !== 1) || columns.every(c => !c.length)) return events;
-      const edge = dir < 0 ? 0 : columns.length - 1;
-      const fronts = columns.map(c => c.shift() ?? null);
-      const out = fronts[edge];
-      const moved = dir < 0 ? [...fronts.slice(1), null] : [null, ...fronts.slice(0, -1)];
-      moved.forEach((ship, i) => ship && columns[i].unshift(ship));
-      events.push({ type: 'slide', dir, out });
-      if (out?.special === 'bomber') stats.bombersLost++;
-      else if (out) stats.discarded += out.ammo;
-      if (out?.special === 'bomber') defuse(events);
-      // zu viel aussortiert: reicht die Munition einer Farbe nicht mehr, ist das Spiel nicht mehr zu gewinnen
-      for (const [color, alive] of asteroid.aliveByColor)
-        if (alive && spare(color) < 0) {
-          state = 'lost';
-          events.push({ type: 'lost', reason: 'ammo', color });
-          break;
-        }
-      return events;
+    launch(shipId, prefer = 0) {
+      if (this.canLaunch(shipId) !== 'ok') return [];
+      let slot = -1;
+      for (let d = 0; d < slots.length * 2 && slot < 0; d++) {
+        const i = prefer + (d % 2 ? -(d + 1) / 2 : d / 2);   // prefer, prefer−1, prefer+1, prefer−2, …
+        if (i >= 0 && i < slots.length && !slots[i]) slot = i;
+      }
+      if (slot < 0) slot = slots.indexOf(null);
+      const index = belt.findIndex(item => item.ship.id === shipId);
+      const [{ ship }] = belt.splice(index, 1);
+      // doomed: seine Farbe ist schon fertig – es findet nie ein Ziel und blockiert die Plattform für immer
+      slots[slot] = { ship, phase: 'arriving', t: 0, cooldown: 0, inFlight: 0, idle: 0, doomed: colorGone(ship.color), misfire: false };
+      return [{ type: 'launch', ship, slot }];
     },
 
     /** Auswertung (für Sterne und Anzeige) */
@@ -258,14 +245,13 @@ export function createGame(level, { seed = level.seed } = {}) {
       return stats;
     },
     /**
-     * Sterne nach dem Sieg (sonst 0): ★ geschafft · ★★ höchstens die Hälfte der Reserve aussortiert ·
-     * ★★★ höchstens STAR_THREE der Reserve aussortiert und kein Spreng-Flieger verschenkt
+     * Sterne nach dem Sieg (sonst 0): ★ geschafft · ★★ höchstens STAR_TWO Fehlstarts ·
+     * ★★★ höchstens STAR_THREE Fehlstarts und kein Spreng-Flieger heruntergefallen
      */
     stars() {
       if (state !== 'won') return 0;
-      const share = stats.reserve > 0 ? stats.discarded / stats.reserve : 0;
-      if (share <= STAR_THREE && stats.bombersLost === 0) return 3;
-      return share <= STAR_TWO ? 2 : 1;
+      if (stats.misfires <= STAR_THREE && stats.bombersLost === 0) return 3;
+      return stats.misfires <= STAR_TWO ? 2 : 1;
     },
     /** Specials, die in diesem Versuch schon eingesetzt wurden */
     get usedSpecials() {
@@ -274,8 +260,8 @@ export function createGame(level, { seed = level.seed } = {}) {
     /**
      * Special einsetzen (je Versuch einmal; ob es freigeschaltet ist, prüft der Modus):
      *   'pad'                      Zusatz-Plattform
-     *   'recolor', column          die äußersten Blöcke anderer Farben werden zur Farbe des vorderen Schiffs dieser
-     *                              Spalte – so viele, wie es Munition hat (es bekommt die Schüsse dazu)
+     *   'recolor', shipId          die äußersten Blöcke anderer Farben werden zur Farbe dieses Schiffs auf dem Band –
+     *                              so viele, wie es Munition hat (höchstens RECOLOR_MAX; es bekommt die Schüsse dazu)
      *   'nova', camera             Riesen-Explosion am Punkt der Figur, der am weitesten zur Kamera zeigt
      * @returns {object[]} Ereignisse (leer, wenn nicht möglich)
      */
@@ -283,11 +269,10 @@ export function createGame(level, { seed = level.seed } = {}) {
       const events = [];
       if (state !== 'play' || used.has(id)) return events;
       if (id === 'pad') {
-        extraSlot = slots.length;
         slots.push(null);
-        events.push({ type: 'pad', slot: extraSlot });
+        events.push({ type: 'pad', slot: slots.length - 1 });
       } else if (id === 'recolor') {
-        const ship = columns[arg]?.[0];
+        const ship = belt.find(item => item.ship.id === arg)?.ship;
         if (!ship || ship.special) return events;
         // die äußersten Blöcke (treffbar), Hülle zuerst – keine Kristalle, nicht die eigene Farbe
         const candidates = [];
@@ -357,6 +342,27 @@ export function createGame(level, { seed = level.seed } = {}) {
       const events = [];
       if (state !== 'play') return events;
 
+      // Förderband: läuft nach links; rechts kommen neue Schiffe aus der Luke (je ein Platz Abstand), links fallen sie
+      for (const item of belt) item.pos -= beltSpeed * dt;
+      while (queue.length && (!belt.length || belt.at(-1).pos + 1 <= BELT_LENGTH))
+        belt.push({ ship: queue.shift(), pos: Math.max(BELT_LENGTH, (belt.at(-1)?.pos ?? 0) + 1) });
+      while (belt.length && belt[0].pos < DROP_AT) {
+        const { ship } = belt.shift();
+        events.push({ type: 'drop', ship });
+        if (ship.special === 'bomber') {
+          stats.bombersLost++;
+          defuse(events);
+        } else {
+          stats.dropped += ship.ammo;
+          // reicht die Munition seiner Farbe nicht mehr, ist das Spiel nicht mehr zu gewinnen
+          if ((asteroid.aliveByColor.get(ship.color) ?? 0) > 0 && spare(ship.color) < 0) {
+            state = 'lost';
+            events.push({ type: 'lost', reason: 'ammo', color: ship.color });
+            return events;
+          }
+        }
+      }
+
       slots.forEach((entry, slot) => {
         if (!entry) return;
         entry.t += dt;
@@ -365,6 +371,11 @@ export function createGame(level, { seed = level.seed } = {}) {
         } else if (entry.phase === 'ready') {
           entry.cooldown -= dt;
           entry.idle += dt;   // seit dem letzten Schuss (wird beim Schießen zurückgesetzt)
+          // Fehlstart (für die Sterne): steht mit Munition blockiert da – einmal je Schiff gezählt
+          if (!entry.misfire && entry.idle >= BLOCKED_AFTER && entry.ship.ammo > 0) {
+            entry.misfire = true;
+            stats.misfires++;
+          }
           if (entry.ship.ammo > 0 && entry.cooldown <= 0) {
             const target = findTarget(entry.ship.color, camera, origin?.(slot));
             if (!target) entry.cooldown = TIMING.search;

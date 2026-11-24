@@ -10,8 +10,8 @@
 
 corepop is a free color-sorting puzzle game in 3D. A figure made of candy-colored cubes floats in space – a football, a heart, a pirate ship … – and under its skin sits a colorful core, layered like a lollipop. Your spaceships take it apart, layer by layer:
 
-- **Tap a ship** – it flies to the landing pad right above its column and only hits blocks of **its own color** that lie **on the very outside**. If there are none, it blocks its pad. All pads blocked: game over.
-- **Swipe the front row** sideways to move ships under free pads. Whatever drops off the edge is gone for good – there is only a little spare ammo, so think before you swipe.
+- **Tap a ship on the conveyor belt** – it flies to a free landing pad and only hits blocks of **its own color** that lie **on the very outside**. If there are none, it blocks its pad. All pads blocked: game over.
+- **Watch the belt** – it keeps moving, and whatever falls off the end is gone. There is only a little spare ammo: if a ship you still need drops off, the level is lost.
 - **Blast crystals** – pulsing magenta cubes hidden in the inner layers. Hit one with a bomber and it explodes: the energy fades with distance and every cube in between, the blown-off cubes tumble into space one by one, bounce off the figure and fade into the dark.
 
 <p align="center">
@@ -47,7 +47,5 @@ corepop is built on great open-source projects. Thanks to everyone who contribut
 | [Vitest](https://vitest.dev) | Automated tests of the game logic | MIT |
 
 ---
-
-Made by Marco Schrenk – [mail@marco-schrenk.de](mailto:mail@marco-schrenk.de)
 
 <p align="center">Designed with ❤️. Powered by Claude.</p>

@@ -2,6 +2,12 @@
 // Optionen-Dialog. Zweck-Texte: about.libs.<id> in src/i18n/*.json.
 // Neue Abhängigkeit → hier eintragen (mit Lizenz) und den Zweck in allen Sprachen ergänzen.
 
+// Autor (Optionen-Dialog → „Über corepop“)
+export const ABOUT = {
+  author: 'Marco Schrenk',
+  email: 'mail@marco-schrenk.de',
+};
+
 export const RUNTIME = [
   { id: 'three', name: 'three.js', url: 'https://threejs.org', license: 'MIT' },
 ];

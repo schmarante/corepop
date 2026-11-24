@@ -10,7 +10,7 @@
   },
   "home": {
     "claim": "Knack den Kern – Farbe für Farbe.",
-    "intro": "Tippe Raumschiffe an – sie schießen nur Blöcke ihrer Farbe, die ganz außen liegen. Wische die Reihe zur Seite, aber Vorsicht: Was hinausfällt, ist weg.",
+    "intro": "Tippe Flieger auf dem Förderband an – sie schießen nur Blöcke ihrer Farbe, die ganz außen liegen. Aber Vorsicht: Was vom Band fällt, ist weg.",
     "play": "Spielen",
     "continue": "Weiter mit Level {n}",
     "levels": "Level",
@@ -20,20 +20,20 @@
     "level": "Level {n}",
     "progress": "Fortschritt",
     "stage": "Spielfeld: Figur, Hangar und Warteschlange. Tasten 1 bis 5 starten ein Schiff, Pfeiltasten schieben die vordere Reihe.",
-    "hint": "Tippe ein Schiff an – es fliegt auf die Plattform darüber. Wische die vordere Reihe zur Seite: Was hinausfällt, ist weg. Rote Zahl: ohne ihn reicht seine Farbe nicht mehr. Wischen oben dreht die Figur.",
+    "hint": "Tippe einen Flieger auf dem Band an – er fliegt auf eine freie Plattform. Er trifft nur Blöcke seiner Farbe ganz außen. Was links vom Band fällt, ist weg.",
     "more": "+{count}",
     "won": "Gepoppt!",
     "allDone": "Alle Level geschafft! 🚀",
     "lost": "Hangar blockiert!",
-    "lostText": "Alle Plattformen sind belegt, und kein Schiff findet einen Block seiner Farbe, der ganz außen liegt. Starte Schiffe erst, wenn genug von ihrer Farbe außen liegt – schiebe die anderen solange zur Seite.",
-    "lostAmmo": "Zu viel aussortiert!",
-    "lostAmmoText": "Für {color} reicht die Munition nicht mehr. Schiffe mit roter Zahl werden noch gebraucht – schiebe sie nicht hinaus.",
+    "lostText": "Alle Plattformen sind belegt, und kein Flieger findet einen Block seiner Farbe, der ganz außen liegt. Starte Flieger erst, wenn genug von ihrer Farbe außen liegt.",
+    "lostAmmo": "Vom Band gefallen!",
+    "lostAmmoText": "Für {color} reicht die Munition nicht mehr. Behalte im Blick, welche Flieger noch gebraucht werden – und starte sie, bevor sie vom Band fallen.",
     "next": "Nächstes Level",
     "again": "Nochmal",
     "fromStart": "Von vorn",
     "noWebgl": "Dein Browser kann leider keine 3D-Grafik anzeigen.",
     "breakOff": "Volltreffer! Sprengsatz gezündet",
-    "bomberGone": "Bomber aussortiert – ein Kristall ist erloschen"
+    "bomberGone": "Bomber vom Band gefallen – ein Kristall ist erloschen"
   },
   "colors": {
     "w": "Silber",
@@ -59,6 +59,8 @@
   "about": {
     "title": "Über corepop",
     "intro": "corepop ist ein Farb-Puzzle: Deine Raumschiffe tragen Figuren aus Blöcken Schicht für Schicht ab. Jedes Schiff trifft nur seine eigene Farbe.",
+    "author": "Autor",
+    "email": "E-Mail",
     "privacy": "Keine Anmeldung, keine Werbung. Dein Spielstand bleibt nur auf deinem Gerät.",
     "openSource": "corepop ist mit tollen Open-Source-Projekten gebaut. Danke an alle, die daran mitarbeiten!",
     "runtime": "Im Spiel",
@@ -85,13 +87,13 @@
       "name": "Supernova",
       "hint": "Eine riesige Explosion reißt die Figur auf."
     },
-    "pick": "Tippe einen Flieger an – die Hülle färbt sich in seine Farbe",
+    "pick": "Tippe einen Flieger auf dem Band an – die Hülle färbt sich in seine Farbe",
     "unlocked": "{name} freigeschaltet!"
   },
   "stars": {
     "label": "{count} von 3 Sternen",
-    "two": "Höchstens die Hälfte der Reserve aussortiert",
-    "three": "Fast nichts aussortiert, kein Bomber verschenkt"
+    "two": "Höchstens 4 Fehlstarts",
+    "three": "Höchstens 1 Fehlstart, kein Bomber verloren"
   },
   "design": {
     "title": "Flieger",

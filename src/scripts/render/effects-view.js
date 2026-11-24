@@ -28,7 +28,7 @@ const PARTICLE_LIFE = 0.6;
 const SHATTER_SCALE = 5;        // Welteinheiten/s je Einheit √(2E/m) aus der Spiellogik
 const SHATTER_JITTER = 0.15;    // Anteil zufälliger Streuung im Tempo
 const SHATTER_OUTWARD = 0.35;   // Mindest-Anteil der Richtung weg vom Körper (nie hinein)
-const SHATTER_SPIN = [3, 11];   // rad/s – Taumeln je Würfel
+const SHATTER_SPIN = [1.2, 4.5]; // rad/s – Taumeln je Würfel (gemächlich – schneller wirkte hektisch)
 const SHATTER_DRAG = 0.25;      // 1/s – kaum Bremsen (Weltall), nur damit es nicht zu hektisch wirkt
 const SHATTER_DARK = [0.2, 2.8];  // Abstand zur Figurmitte (in Körperradien): ab hier dunkler … schwarz und weg
 const SHATTER_BEHIND = [0.2, 2];  // Tiefe hinter der Figurmitte, von der Kamera weg (Körperradien): dunkler … schwarz
@@ -354,7 +354,7 @@ export function createEffectsView(scene, camera) {
         relative.addScaledVector(n, -into).multiplyScalar(BOUNCE_FRICTION).addScaledVector(n, -into * BOUNCE);
         c.velocity.copy(relative).add(surfaceVelocity);
         c.spin.randomDirection();
-        c.spinSpeed = c.spinSpeed * 0.8 + relative.length() * 0.6;
+        c.spinSpeed = Math.min(SHATTER_SPIN[1], c.spinSpeed * 0.8 + relative.length() * 0.25);
         return true;
       };
       if (dt > 0) separateCubes();

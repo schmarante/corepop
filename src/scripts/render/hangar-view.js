@@ -21,6 +21,7 @@ const DECK_BELOW = 1.05;      // Abstand Schiffsmitte → Deck-Oberseite
 const ARRIVE_FROM = new THREE.Vector3(0, -4, 5);   // Anflug von vorn unten, falls kein Modell aus der Warteschlange kommt
 const ARRIVE_ARC = 0.6;       // Welteinheiten – der Start aus der Warteschlange hüpft leicht nach vorn
 const UP = new THREE.Vector3(0, 1, 0);
+const UPRIGHT = new THREE.Quaternion();
 const APPEAR = 0.5;           // s – Deck wächst hinein
 const FADE = 0.3;             // s – Deck schrumpft beim Levelwechsel weg
 const SHRINK_OUT = 0.25;      // s – abfliegendes Schiff schrumpft am Ende seines Abflugs weg
@@ -139,8 +140,8 @@ export function createHangarView(scene, slotCount) {
      *  dort hoch, die Zahl wandert vom Rumpf in die Blase darunter. Ohne Modell: Anflug von vorn unten. */
     add(slot, ship, model = null) {
       const from = model
-        ? { position: model.group.position.clone(), size: model.group.scale.x, label: model.label.position.clone(), labelSize: model.label.scale.x }
-        : { position: slotPosition(slot).add(ARRIVE_FROM), size: 0.001, label: LABEL_BELOW.clone(), labelSize: LABEL_SIZE };
+        ? { position: model.group.position.clone(), size: model.group.scale.x, label: model.label.position.clone(), labelSize: model.label.scale.x, turn: model.hull.quaternion.clone() }
+        : { position: slotPosition(slot).add(ARRIVE_FROM), size: 0.001, label: LABEL_BELOW.clone(), labelSize: LABEL_SIZE, turn: new THREE.Quaternion() };
       model ??= createShipModel(ship.color, ship.ammo, ship);
       model.group.position.copy(from.position);
       model.group.scale.setScalar(Math.max(0.001, from.size));
@@ -212,7 +213,8 @@ export function createHangarView(scene, slotCount) {
           model.label.position.lerpVectors(s.from.label, LABEL_BELOW, e);
           model.label.scale.setScalar(s.from.labelSize + (LABEL_SIZE - s.from.labelSize) * e);
           model.setDim(0);
-          model.hull.quaternion.identity();
+          // aus der Parkstellung (Förderband) weich aufrichten, schon in der ersten Hälfte des Anflugs
+          model.hull.quaternion.slerpQuaternions(s.from.turn, UPRIGHT, easeOutCubic(Math.min(1, p * 1.8)));
         } else if (entry.phase === 'ready') {
           model.group.position.copy(home);
           if (isBlocked(entry)) q.copy(slot < (slotCount - 1) / 2 ? droopLeft : droopRight);   // blockiert: zur Seite kippen

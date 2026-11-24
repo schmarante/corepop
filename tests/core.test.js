@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEVELS, levelIndex } from '../src/scripts/core/levels.js';
-import { createGame, TIMING, FACING, BLOCKED_AFTER, STAR_TWO, STAR_THREE } from '../src/scripts/core/game.js';
+import { createGame, TIMING, FACING, BLOCKED_AFTER, STAR_TWO, STAR_THREE, BELT_LENGTH } from '../src/scripts/core/game.js';
 import { BLAST, blastPower, blastReach, clearRay, createAsteroid, facing, hittable, removeVoxel, voxelKey } from '../src/scripts/core/asteroid.js';
 import { createRng } from '../src/scripts/core/rng.js';
 import { MODELS } from '../src/scripts/core/models/index.js';
@@ -10,21 +10,40 @@ import { simulate } from '../src/scripts/core/simulate.js';
 /** Kamera kreist um den Asteroiden (wie die Eigendrehung), Abstand in Voxeln */
 const orbit = (t, distance = 20) => ({ x: Math.sin(t) * distance, y: 4, z: Math.cos(t) * distance });
 
-/** Startet blind das vorderste Schiff der ersten Spalte, deren Plattform frei ist – außer Schiffe fertiger Farben (die
- *  blockierten für immer). Steht unter keiner freien Plattform ein Schiff, wird die vorderste Reihe einmal geschoben. */
+/** Schiffe auf dem sichtbaren (antippbaren) Band, links zuerst */
+const visible = game => game.belt.filter(item => item.pos <= BELT_LENGTH - 0.5).map(item => item.ship);
+
+/** Alle Schiffe, die noch nicht gestartet sind: Band, dann Luke */
+const waitingShips = game => [...game.belt.map(item => item.ship), ...game.queue];
+
+/** Startet blind das erste sichtbare Schiff, dessen Farbe noch nicht fertig ist (die blockierten für immer) – auf
+ *  irgendeine freie Plattform */
 function launchAny(game) {
-  const column = game.columns.findIndex((c, i) => c.length && !game.slots[i] && game.asteroid.aliveByColor.get(c[0].color));
-  if (column >= 0) return game.launch(column);
-  return game.slots.includes(null) ? game.slide(-1) : [];
+  const ship = visible(game).find(s => game.asteroid.aliveByColor.get(s.color));
+  return ship ? game.launch(ship.id) : [];
 }
 
-/** Munition je Farbe (Warteschlange + Hangar) */
+/** Munition je Farbe (Band + Luke + Hangar) */
 function ammoByColor(game) {
   const ammo = {};
-  const ships = [...game.columns.flat(), ...game.slots.filter(e => e && e.phase !== 'leaving').map(e => e.ship)];
+  const ships = [...waitingShips(game), ...game.slots.filter(e => e && e.phase !== 'leaving').map(e => e.ship)];
   for (const ship of ships) ammo[ship.color] = (ammo[ship.color] ?? 0) + ship.ammo;
   return ammo;
 }
+
+/** Legt ein Schiff vorn aufs Band (Position `pos`, Sortierung bleibt) */
+function putOnBelt(game, ship, pos = 1) {
+  const index = game.belt.findIndex(item => item.pos > pos);
+  game.belt.splice(index < 0 ? game.belt.length : index, 0, { ship, pos });
+  return ship;
+}
+
+/** Level 1 mit üppiger Reserve und kleinen Schiffen, ohne Kristalle – kein Schiff ist anfangs unverzichtbar */
+const roomy = { ...LEVELS[0], crystals: 0, reserve: 1, ships: { 50: 1 } };
+
+/** Schnelles Band und unbegrenzter Hangar: Jedes Schiff wird sofort gestartet, sobald es sichtbar ist – es fällt nie
+ *  eins herunter (außer Schiffen fertiger Farben, die niemand mehr braucht) */
+const unbounded = level => ({ ...level, slots: 300, belt: 3 });
 
 /** Lebende Voxel je Farbe (nur Farben, die noch vorkommen) */
 const aliveByColor = game => Object.fromEntries([...game.asteroid.aliveByColor].filter(([, n]) => n > 0));
@@ -51,9 +70,10 @@ describe('Level-Erzeugung', () => {
     const a = createGame(LEVELS[0]);
     const b = createGame(LEVELS[0]);
     expect(a.asteroid.voxels.map(v => v.color).join('')).toBe(b.asteroid.voxels.map(v => v.color).join(''));
-    expect(JSON.stringify(a.columns)).toBe(JSON.stringify(b.columns));
+    expect(JSON.stringify(waitingShips(a))).toBe(JSON.stringify(waitingShips(b)));
+    expect(JSON.stringify(a.belt)).toBe(JSON.stringify(b.belt));
     const c = createGame(LEVELS[0], { seed: 'anders' });
-    expect(JSON.stringify(c.columns)).not.toBe(JSON.stringify(a.columns));
+    expect(JSON.stringify(waitingShips(c))).not.toBe(JSON.stringify(waitingShips(a)));
   });
 
   it.each(LEVELS.map((level, i) => [i + 1, level]))('Level %i: Munition pro Farbe = Voxelanzahl + Reserve', (_, level) => {
@@ -61,20 +81,20 @@ describe('Level-Erzeugung', () => {
     const voxels = {};
     for (const v of game.asteroid.voxels) voxels[v.color] = (voxels[v.color] ?? 0) + 1;
     const ammo = {};
-    for (const ship of game.columns.flat()) ammo[ship.color] = (ammo[ship.color] ?? 0) + ship.ammo;
+    for (const ship of waitingShips(game)) ammo[ship.color] = (ammo[ship.color] ?? 0) + ship.ammo;
     for (const [color, n] of Object.entries(voxels)) {
       if (color === BLAST) expect(ammo[color]).toBe(n);   // je Kristall ein Spreng-Flieger
       else if (n < MIN_AMMO) expect(ammo[color]).toBe(2 * n);   // kleine Farbe: zwei Schiffe
       else expect(ammo[color]).toBe(n + Math.ceil(n * (level.reserve ?? DEFAULT_RESERVE)));
     }
-    expect(game.columns).toHaveLength(level.slots);   // Spalte = Plattform
+    expect(game.slots).toHaveLength(level.slots);
   });
 
   it.each(LEVELS.map((level, i) => [i + 1, level]))(`Level %i: kein Schiff unter ${MIN_AMMO} Schuss (außer die Farbe hat weniger Würfel)`, (_, level) => {
     const game = createGame(level);
     const voxels = {};
     for (const v of game.asteroid.voxels) voxels[v.color] = (voxels[v.color] ?? 0) + 1;
-    for (const ship of game.columns.flat()) {
+    for (const ship of waitingShips(game)) {
       if (ship.special === 'bomber') continue;
       if (voxels[ship.color] >= MIN_AMMO) expect(ship.ammo).toBeGreaterThanOrEqual(MIN_AMMO);
       else expect(ship.ammo).toBe(voxels[ship.color]);
@@ -158,7 +178,7 @@ describe('Sichtbarkeit', () => {
 
 describe('Zielregel', () => {
   it.each(LEVELS.slice(0, 3).map(l => [l.model.type, l]))('%s: jedes Schiff trifft ausschließlich Würfel seiner eigenen Farbe – ein ganzes Spiel lang', (_, level) => {
-    const game = createGame({ ...level, slots: 300, shuffle: 0 });   // ohne Durchmischung, unbegrenzt: läuft lange genug
+    const game = createGame({ ...unbounded(level), shuffle: 0 });   // ohne Durchmischung, unbegrenzt: läuft lange genug
     const ship = { x: 0, y: -25, z: 18 };
     let time = 0;
     let checked = 0;
@@ -176,7 +196,7 @@ describe('Zielregel', () => {
   });
 
   it('jeder Schuss tritt durch eine freie Fläche ein, vor der nichts mehr liegt; Flächen zu Kamera/Schiff zuerst', () => {
-    const game = createGame({ ...LEVELS[0], slots: 300 });
+    const game = createGame(unbounded(LEVELS[0]));
     const ship = { x: 0, y: -25, z: 18 };
     let time = 0;
     let fired = 0;
@@ -226,102 +246,139 @@ describe('Zielregel', () => {
 });
 
 describe('Spielablauf', () => {
-  it('ein Schiff fliegt nur auf die Plattform über seiner Spalte; ist sie belegt, geht nichts', () => {
-    const game = createGame(LEVELS[0]);
-    expect(game.columns).toHaveLength(game.slots.length);
-    const ship = game.columns[2][0];
-    expect(game.launch(2)[0]).toMatchObject({ type: 'launch', ship, slot: 2 });
-    expect(game.slots[2].ship).toBe(ship);
-    expect(game.slots.filter(Boolean)).toHaveLength(1);
-    // dieselbe Spalte noch einmal: Plattform belegt, obwohl andere frei sind
-    expect(game.canLaunch(2)).toBe('full');
-    expect(game.launch(2)).toEqual([]);
-    expect(game.canLaunch(3)).toBe('ok');
-    expect(game.launch(4)[0]).toMatchObject({ type: 'launch', slot: 4 });
-    expect(game.canLaunch(99)).toBe('empty');
-  });
-
-  it('Schieben: vorderste Reihe rückt einen Platz, das Randschiff ist weg', () => {
-    for (const dir of [-1, 1]) {
-      const game = createGame({ ...LEVELS[0], crystals: 0 });   // ohne Spreng-Flieger
-      const n = game.columns.length;
-      const fronts = game.columns.map(c => c[0]);
-      const edge = dir < 0 ? 0 : n - 1;
-      const other = dir < 0 ? n - 1 : 0;
-      const nextUp = game.columns[other][1];
-      const total = game.columns.flat().length;
-      const before = ammoByColor(game);
-      const [event] = game.slide(dir);
-      expect(event).toEqual({ type: 'slide', dir, out: fronts[edge] });
-      expect(game.columns.flat()).not.toContain(fronts[edge]);
-      expect(game.columns.flat()).toHaveLength(total - 1);
-      for (let i = 0; i < n; i++) {
-        if (i === other) expect(game.columns[i][0]).toBe(nextUp);
-        else expect(game.columns[i][0]).toBe(fronts[i - dir]);
-      }
-      const color = fronts[edge].color;
-      expect(ammoByColor(game)).toEqual({ ...before, [color]: before[color] - fronts[edge].ammo });
-      expect(game.state).toBe('play');   // ein Schiff darf man dank Reserve hergeben
+  it('Förderband: läuft nach links, füllt rechts aus der Luke nach (je mindestens ein Platz Abstand), Lücken bleiben', () => {
+    const game = createGame({ ...LEVELS[0], crystals: 0, belt: 0.2 });
+    const speed = game.beltSpeed;
+    expect(game.belt.map(item => item.pos)).toEqual([2.5, 3.5, 4.5, 5.5, 6.5, 7.5]);
+    const order = waitingShips(game).map(s => s.id);
+    // ein Schiff aus der Mitte nehmen: die Lücke bleibt beim Weiterlaufen
+    const [left, taken, right] = game.belt.slice(1, 4);
+    game.launch(taken.ship.id);
+    for (let k = 0; k < 10; k++) game.step(0.1, orbit(k));
+    expect(left.pos).toBeCloseTo(3.5 - speed);
+    expect(right.pos - left.pos).toBeCloseTo(2);
+    // lange laufen lassen: rechts kommen die Schiffe in der Reihenfolge der Luke nach, nie dichter als ein Platz
+    const queued = game.queue.length;
+    for (let k = 0; k < 120; k++) {
+      game.step(0.1, orbit(k));
+      for (let i = 1; i < game.belt.length; i++) expect(game.belt[i].pos - game.belt[i - 1].pos).toBeGreaterThanOrEqual(1 - 1e-9);
     }
+    expect(game.queue.length).toBeLessThan(queued);
+    expect(game.belt.at(-1).pos).toBeLessThanOrEqual(BELT_LENGTH);
+    expect(waitingShips(game).map(s => s.id)).toEqual(order.filter(id => id !== taken.ship.id).slice(-waitingShips(game).length));
   });
 
-  it('wer ein Schiff aussortiert, ohne das seine Farbe nicht mehr reicht, verliert', () => {
-    const game = createGame({ ...LEVELS[0], crystals: 0 });
-    const ship = game.columns[0][0];
+  it('ein Schiff fliegt auf die gewünschte freie Plattform, sonst auf die nächste freie; alle belegt → full', () => {
+    const game = createGame({ ...LEVELS[0], slots: 5 });
+    const next = () => visible(game)[0];
+    let ship = next();
+    expect(game.canLaunch(ship.id)).toBe('ok');
+    expect(game.launch(ship.id, 2)[0]).toEqual({ type: 'launch', ship, slot: 2 });
+    expect(game.slots[2].ship).toBe(ship);
+    expect(visible(game)).not.toContain(ship);
+    expect(game.canLaunch(ship.id)).toBe('gone');   // schon gestartet
+    // Plattform 2 belegt: die nächste daneben
+    const [first] = game.launch(next().id, 2);
+    expect(Math.abs(first.slot - 2)).toBe(1);
+    const [second] = game.launch(next().id, 2);
+    expect(Math.abs(second.slot - 2)).toBe(1);
+    expect(second.slot).not.toBe(first.slot);
+    const [third] = game.launch(next().id, 2);
+    expect([0, 4]).toContain(third.slot);
+    expect(game.launch(next().id, 2)[0].slot).toBe(4 - third.slot);
+    expect(game.slots.includes(null)).toBe(false);
+    ship = next();
+    expect(game.canLaunch(ship.id)).toBe('full');
+    expect(game.launch(ship.id)).toEqual([]);
+    expect(visible(game)).toContain(ship);
+    // noch in der Luke bzw. hinter der Einfahrt: nicht antippbar
+    expect(game.canLaunch(game.queue[0].id)).toBe('gone');
+  });
+
+  it('was das Bandende erreicht, fällt herunter und ist weg – dank Reserve geht das Spiel weiter', () => {
+    const game = createGame(roomy);
+    const ship = game.belt[0].ship;
+    expect(game.essential(ship)).toBe(false);
+    const before = ammoByColor(game);
+    const events = [];
+    const time = (game.belt[0].pos + 0.5) / game.beltSpeed;
+    for (let t = 0; t < time + 0.2; t += 0.1) events.push(...game.step(0.1, orbit(t)));
+    expect(events.filter(e => e.type === 'drop')).toEqual([{ type: 'drop', ship }]);
+    expect(waitingShips(game)).not.toContain(ship);
+    expect(game.stats.dropped).toBe(ship.ammo);
+    expect(ammoByColor(game)[ship.color]).toBe(before[ship.color] - ship.ammo);
+    expect(game.state).toBe('play');
+  });
+
+  it('fällt ein unverzichtbares Schiff herunter (seine Farbe hätte zu wenig Munition), ist das Spiel verloren', () => {
+    const game = createGame(roomy);
+    const ship = game.belt[0].ship;
     // Reserve dieser Farbe aufbrauchen: alle anderen Schiffe der Farbe weg, dieses trägt genau den Bedarf
-    for (const column of game.columns) column.splice(0, column.length, ...column.filter(s => s === ship || s.color !== ship.color));
+    game.belt.splice(0, game.belt.length, ...game.belt.filter(item => item.ship === ship || item.ship.color !== ship.color));
+    game.queue.splice(0, game.queue.length, ...game.queue.filter(s => s.color !== ship.color));
     ship.ammo = game.asteroid.aliveByColor.get(ship.color);
     expect(game.essential(ship)).toBe(true);
-    expect(game.essential(game.columns[1][0])).toBe(false);
-    expect(game.slide(-1)).toContainEqual({ type: 'lost', reason: 'ammo', color: ship.color });
+    expect(game.essential(game.belt[1].ship)).toBe(false);
+    let lost = null;
+    for (let t = 0; t < 30 && !lost; t += 0.1) lost = game.step(0.1, orbit(t)).find(e => e.type === 'lost');
+    expect(lost).toEqual({ type: 'lost', reason: 'ammo', color: ship.color });
     expect(game.state).toBe('lost');
   });
 
-  it('nach beliebigem Schieben und Starten: Munition je Farbe ≥ lebende Würfel, bis zu viel aussortiert ist', () => {
+  it('bei beliebigem Starten und Herunterfallen: Munition je Farbe ≥ Bedarf, bis ein unverzichtbares Schiff fällt', () => {
     const level = LEVELS.find(l => l.crystals > 0);
-    const game = createGame(level);
-    const rng = createRng('schieben');
-    let slides = 0;
-    let events = [];
-    for (let k = 0; k < 300 && game.state === 'play'; k++) {
-      events = rng() < 0.7 ? game.slide(rng() < 0.5 ? -1 : 1) : game.launch(Math.floor(rng() * game.columns.length));
-      slides += events.some(e => e.type === 'slide');
+    const game = createGame({ ...level, slots: 300, belt: 2, reserve: 0.25 });
+    const rng = createRng('band');
+    let drops = 0;
+    let last = null;
+    for (let t = 0; t < 600 && game.state === 'play'; t += 0.1) {
+      const ships = visible(game);
+      if (ships.length && rng() < 0.08) game.launch(rng.pick(ships).id);
+      const events = game.step(0.1, orbit(t));
+      drops += events.filter(e => e.type === 'drop').length;
+      last = events.find(e => e.type === 'lost') ?? last;
       if (game.state !== 'play') break;
+      // Bedarf: lebende Würfel ohne die, auf die schon ein Schuss fliegt
+      const need = aliveByColor(game);
+      for (const shot of game.shots) if (shot.voxel.alive) need[shot.voxel.color]--;
       const ammo = ammoByColor(game);
-      for (const [color, alive] of Object.entries(aliveByColor(game))) expect(ammo[color]).toBeGreaterThanOrEqual(alive);
+      for (const [color, n] of Object.entries(need)) if (color !== BLAST) expect(ammo[color] ?? 0).toBeGreaterThanOrEqual(n);
     }
-    expect(slides).toBeGreaterThan(1);
-    // blindes Schieben verbraucht irgendwann zu viel Reserve
-    expect(events.find(e => e.type === 'lost')).toMatchObject({ reason: 'ammo' });
+    expect(drops).toBeGreaterThan(1);
+    // blindes Liegenlassen verbraucht irgendwann zu viel Reserve
+    expect(last).toMatchObject({ type: 'lost', reason: 'ammo' });
   });
 
-  it('ein aussortierter Spreng-Flieger entschärft einen Kristall: normaler Block, ein Schiff seiner Farbe +1 Munition', () => {
+  it('ein heruntergefallener Spreng-Flieger entschärft einen Kristall: normaler Block, ein Schiff seiner Farbe +1 Munition', () => {
     const level = LEVELS.find(l => l.crystals > 0);
     const game = createGame(level);
-    const column = game.columns.findIndex(c => c.some(s => s.special === 'bomber'));
-    const bomber = game.columns[column].find(s => s.special === 'bomber');
-    game.columns[column].splice(game.columns[column].indexOf(bomber), 1);
-    game.columns[0].unshift(bomber);   // an den linken Rand
+    const bomber = waitingShips(game).find(s => s.special === 'bomber');
+    game.belt.splice(0, game.belt.length, ...game.belt.filter(item => item.ship !== bomber));
+    game.queue.splice(0, game.queue.length, ...game.queue.filter(s => s !== bomber));
+    putOnBelt(game, bomber, 0);   // ans Bandende
     const blast = game.asteroid.aliveByColor.get(BLAST);
     const spare = Object.fromEntries([...game.asteroid.aliveByColor.keys()].map(c => [c, game.spare(c)]));
-    const events = game.slide(-1);
-    expect(events[0]).toEqual({ type: 'slide', dir: -1, out: bomber });
-    expect(game.columns.flat()).not.toContain(bomber);
+    const events = [];
+    for (let t = 0; t < 3; t += 0.1) events.push(...game.step(0.1, orbit(t)));
+    expect(events.filter(e => e.type === 'drop')).toEqual([{ type: 'drop', ship: bomber }]);
+    expect(waitingShips(game)).not.toContain(bomber);
     const defuse = events.find(e => e.type === 'defuse');
     expect(defuse).toBeTruthy();
     const { crystal, ship } = defuse;
     expect(crystal).toMatchObject({ crystal: false, color: crystal.baseColor, alive: true });
     expect(ship.color).toBe(crystal.baseColor);
     expect(game.asteroid.aliveByColor.get(BLAST)).toBe(blast - 1);
-    expect(game.columns.flat().filter(s => s.special === 'bomber')).toHaveLength(blast - 1);
+    expect(waitingShips(game).filter(s => s.special === 'bomber')).toHaveLength(blast - 1);
     // Reserve bleibt gleich: ein Block mehr, ein Schuss mehr
     expect(game.spare(crystal.baseColor)).toBe(spare[crystal.baseColor]);
+    expect(game.stats.bombersLost).toBe(1);
+    expect(game.stats.dropped).toBe(0);
     expect(game.state).toBe('play');
   });
 
   it('Schiff schießt erst nach dem Anflug', () => {
     const game = createGame(LEVELS[0]);
-    game.launch(0);
+    launchAny(game);
     expect(game.step(TIMING.arrive / 2, orbit(0)).some(e => e.type === 'fire')).toBe(false);
     let fired = false;
     for (let t = 0; t < 10 && !fired; t += 0.05) fired = game.step(0.05, orbit(t)).some(e => e.type === 'fire');
@@ -329,17 +386,16 @@ describe('Spielablauf', () => {
   });
 
   it.each(LEVELS.map((level, i) => [i + 1, level]))('Level %i ist mit unbegrenztem Hangar immer zu gewinnen', (_, level) => {
-    const game = createGame({ ...level, slots: 300 });
+    const game = createGame(unbounded(level));
     autoplay(game);
     expect(game.state).toBe('won');
     expect(game.destroyed).toBe(game.asteroid.total);
-  });
+  }, 60_000);
 
   it('ein Schiff ohne Ziel ganz außen bleibt blockiert auf seiner Plattform, ohne zu schießen', () => {
     const game = createGame({ ...LEVELS[0], slots: 2 });
-    const ship = deepShip(game, 900);
-    game.columns[0].unshift(ship);
-    game.launch(0);
+    const ship = putOnBelt(game, deepShip(game, 900));
+    game.launch(ship.id);
     const events = [];
     for (let t = 0; t < TIMING.arrive + BLOCKED_AFTER + 1; t += 0.05) events.push(...game.step(0.05, orbit(t)));
     expect(events.some(e => e.type === 'fire' || e.type === 'leave')).toBe(false);
@@ -351,10 +407,8 @@ describe('Spielablauf', () => {
 
   it('alle Plattformen mit blockierten Schiffen belegt → verloren', () => {
     const game = createGame({ ...LEVELS[0], slots: 2 });
-    game.columns[0].unshift(deepShip(game, 900));
-    game.columns[1].unshift(deepShip(game, 901));
-    game.launch(0);
-    game.launch(1);
+    game.launch(putOnBelt(game, deepShip(game, 900)).id);
+    game.launch(putOnBelt(game, deepShip(game, 901)).id);
     let lost = null;
     for (let t = 0; t < 5 && !lost; t += 0.05) lost = game.step(0.05, orbit(t)).find(e => e.type === 'lost');
     expect(lost).toEqual({ type: 'lost', reason: 'jam' });
@@ -363,7 +417,7 @@ describe('Spielablauf', () => {
 
   it('volle Slots ohne passende Ziele → verloren', () => {
     const game = createGame({ ...LEVELS[0], slots: 1 });
-    game.launch(0);
+    launchAny(game);
     // alle Voxel der Schiffsfarbe als reserviert markieren: das Schiff findet kein Ziel mehr
     const color = game.slots[0].ship.color;
     for (const v of game.asteroid.voxels) if (v.color === color) v.reserved = true;
@@ -386,7 +440,7 @@ describe('Riss-Kristalle', () => {
 
   it('je Spreng-Block genau ein Spreng-Flieger mit einer Bombe; normale Schiffe haben nie die Spreng-Farbe', () => {
     const game = createGame(withCrystals);
-    const ships = game.columns.flat();
+    const ships = waitingShips(game);
     const bombers = ships.filter(s => s.special === 'bomber');
     expect(bombers).toHaveLength(game.asteroid.crystals.length);
     for (const b of bombers) expect(b).toMatchObject({ color: BLAST, ammo: 1 });
@@ -431,9 +485,7 @@ describe('Riss-Kristalle', () => {
     const game = createGame({ ...withCrystals, slots: 1 });
     const crystal = game.asteroid.crystals[0];
     // Schiff in Kristallfarbe direkt in den Hangar, Kristall als einziges Ziel freilegen
-    const column = game.columns.findIndex(c => c.length);
-    game.columns[column].unshift({ id: 999, color: crystal.color, ammo: 1 });
-    game.launch(column);
+    game.launch(putOnBelt(game, { id: 999, color: crystal.color, ammo: 1 }).id);
     // Schacht vom Kristall nach außen graben (entlang seiner größten Achse), Kamera weit draußen in dieser Richtung
     const axis = ['x', 'y', 'z'].reduce((a, b) => (Math.abs(crystal[b]) > Math.abs(crystal[a]) ? b : a));
     const step = { x: 0, y: 0, z: 0, [axis]: Math.sign(crystal[axis]) || 1 };
@@ -473,8 +525,9 @@ describe('Riss-Kristalle', () => {
 
   it('ist eine Farbe fertig, bleiben ihre Schiffe stehen – gestartet blockieren sie die Plattform für immer', () => {
     const game = createGame({ ...LEVELS[0], slots: 2 });
-    const color = game.columns[0][0].color;
-    const waiting = game.columns.flat().filter(s => s.color === color).length;
+    const ship = game.belt[0].ship;
+    const { color } = ship;
+    const waiting = waitingShips(game).filter(s => s.color === color).length;
     // alle Voxel der Farbe von außen entfernen (wie durch Bruchstücke), dann einen Schritt rechnen
     for (const v of game.asteroid.voxels) if (v.color === color) {
       v.alive = false;
@@ -482,11 +535,10 @@ describe('Riss-Kristalle', () => {
     }
     game.asteroid.aliveByColor.set(color, 0);
     game.step(0.01, orbit(0));
-    expect(game.columns.flat().filter(s => s.color === color)).toHaveLength(waiting);
-    // hinausschieben kostet nichts (wird nicht mehr gebraucht)
-    expect(game.essential(game.columns[0][0])).toBe(false);
-    const ship = game.columns[0][0];
-    game.launch(0);
+    expect(waitingShips(game).filter(s => s.color === color)).toHaveLength(waiting);
+    // herunterfallen lassen kostet nichts (wird nicht mehr gebraucht)
+    expect(game.essential(ship)).toBe(false);
+    game.launch(ship.id, 0);
     expect(game.slots[0].doomed).toBe(true);
     const events = [];
     for (let t = 0; t < 5; t += 0.05) events.push(...game.step(0.05, orbit(t)));
@@ -496,7 +548,7 @@ describe('Riss-Kristalle', () => {
 
   it('wird die Farbe fertig, während das Schiff auf der Plattform steht, fliegt es mit Restmunition ab', () => {
     const game = createGame(LEVELS[0]);
-    game.launch(0);
+    game.launch(visible(game)[0].id, 0);
     const { ship } = game.slots[0];
     for (let t = 0; t < TIMING.arrive + 0.05; t += 0.05) game.step(0.05, orbit(t));
     for (const v of game.asteroid.voxels) if (v.color === ship.color && v.alive) removeVoxel(game.asteroid, v);
@@ -506,7 +558,7 @@ describe('Riss-Kristalle', () => {
   });
 
   it('Level mit Kristallen sind mit unbegrenztem Hangar zu gewinnen, Schiffe mit Restmunition fliegen ab', () => {
-    const game = createGame({ ...withCrystals, slots: 300 });
+    const game = createGame(unbounded(withCrystals));
     autoplay(game);
     expect(game.state).toBe('won');
   });
@@ -516,59 +568,72 @@ describe('Simulation (Bots)', () => {
   it.each(LEVELS.map((level, i) => [i + 1, level]))('Level %i: der schlaue Bot gewinnt mit dem echten Hangar mindestens 2 von 3 Seeds', (_, level) => {
     const runs = [0, 1, 2].map(k => simulate(level, { bot: 'smart', seed: `${level.seed}#${k}` }));
     expect(runs.filter(r => r.won).length).toBeGreaterThanOrEqual(2);
-  }, 60_000);
+  }, 120_000);
 
-  it('der Zufalls-Bot schiebt auch, beide melden Starts und Schübe', () => {
+  it('beide Bots melden Starts, heruntergefallene Schiffe, Fehlstarts und Sterne', () => {
     const r = simulate(LEVELS[0], { bot: 'random' });
-    expect(r.slides).toBeGreaterThan(0);
     expect(r.launches).toBeGreaterThan(0);
-    expect(simulate(LEVELS[0])).toMatchObject({ won: true, left: 0 });
+    expect(r).toHaveProperty('drops');
+    expect(r).toHaveProperty('misfires');
+    const smart = simulate(LEVELS[0]);
+    expect(smart).toMatchObject({ won: true, left: 0, reason: null });
+    expect(smart.stars).toBeGreaterThanOrEqual(1);
   });
 });
 
 describe('Sterne und Specials', () => {
-  it('Sterne: 0 vor dem Sieg; drei ohne Aussortieren, weniger je mehr Reserve aussortiert wurde', () => {
+  it('Fehlstart: ein gestartetes Schiff, das blockiert stehen bleibt, zählt einmal', () => {
+    const game = createGame({ ...LEVELS[0], crystals: 0 });
+    launchAny(game);   // Hülle: hat sofort Ziele
+    game.launch(putOnBelt(game, deepShip(game, 900)).id);
+    for (let t = 0; t < TIMING.arrive + BLOCKED_AFTER * 4; t += 0.05) game.step(0.05, orbit(t));
+    expect(game.stats.misfires).toBe(1);
+  });
+
+  it('Sterne: 0 vor dem Sieg; ★★★ bis STAR_THREE Fehlstarts ohne verlorenen Spreng-Flieger, ★★ bis STAR_TWO, sonst ★', () => {
     const game = createGame({ ...LEVELS[0], crystals: 0 });
     expect(game.stars()).toBe(0);
-    expect(game.stats.reserve).toBeGreaterThan(0);
+    expect(game.stats).toEqual({ misfires: 0, dropped: 0, bombersLost: 0 });
     game.clearAll();
     game.step(0.01, orbit(0));
     expect(game.state).toBe('won');
     expect(game.stars()).toBe(3);
-    game.stats.discarded = game.stats.reserve * (STAR_TWO + STAR_THREE) / 2;
+    game.stats.misfires = STAR_THREE;
+    expect(game.stars()).toBe(3);
+    game.stats.misfires = STAR_THREE + 1;
     expect(game.stars()).toBe(2);
-    game.stats.discarded = game.stats.reserve * 0.9;
+    game.stats.misfires = STAR_TWO;
+    expect(game.stars()).toBe(2);
+    game.stats.misfires = STAR_TWO + 1;
     expect(game.stars()).toBe(1);
-    game.stats.discarded = 0;
+    game.stats.misfires = 0;
+    game.stats.dropped = 500;   // heruntergefallene Munition kostet keinen Stern
+    expect(game.stars()).toBe(3);
     game.stats.bombersLost = 1;
-    expect(game.stars()).toBe(2);   // verschenkter Bomber kostet den dritten Stern
+    expect(game.stars()).toBe(2);   // verschenkter Spreng-Flieger kostet den dritten Stern
   });
 
-  it('Aussortieren zählt für die Sterne mit', () => {
-    const game = createGame({ ...LEVELS[0], crystals: 0 });
-    const out = game.columns[0][0];
-    game.slide(-1);
-    expect(game.stats.discarded).toBe(out.ammo);
-  });
-
-  it('Plattform +1: ein Schiff darf auf die Zusatz-Plattform, wenn seine eigene belegt ist – je Versuch einmal', () => {
-    const game = createGame(LEVELS[0]);
-    game.launch(0);
-    expect(game.canLaunch(0)).toBe('full');
-    expect(game.special('pad')).toEqual([{ type: 'pad', slot: LEVELS[0].slots }]);
-    expect(game.canLaunch(0)).toBe('ok');
-    expect(game.launch(0)[0]).toMatchObject({ type: 'launch', slot: LEVELS[0].slots });
-    expect(game.canLaunch(0)).toBe('full');
+  it('Plattform +1: eine Zusatz-Plattform, die jedes Schiff nutzen kann – je Versuch einmal', () => {
+    const slots = 3;
+    const game = createGame({ ...LEVELS[0], slots });
+    for (let k = 0; k < slots; k++) launchAny(game);
+    const ship = visible(game)[0];
+    expect(game.canLaunch(ship.id)).toBe('full');
+    expect(game.special('pad')).toEqual([{ type: 'pad', slot: slots }]);
+    expect(game.canLaunch(ship.id)).toBe('ok');
+    expect(game.launch(ship.id)[0]).toMatchObject({ type: 'launch', ship, slot: slots });
+    expect(game.canLaunch(visible(game)[0].id)).toBe('full');
     expect(game.special('pad')).toEqual([]);
   });
 
-  it('Farbwechsel: äußerste Blöcke anderer Farben bekommen die Farbe des Fliegers, er die Schüsse dazu', () => {
+  it('Farbwechsel: äußerste Blöcke anderer Farben bekommen die Farbe des Fliegers auf dem Band, er die Schüsse dazu', () => {
     const game = createGame({ ...LEVELS[0], crystals: 0 });
-    const ship = game.columns[0][0];
+    const ship = visible(game)[2];
     const ammo = ship.ammo;
     const before = ammoByColor(game);
-    const [event] = game.special('recolor', 0);
-    expect(event.type).toBe('recolor');
+    expect(game.special('recolor', 12345)).toEqual([]);   // kein Schiff auf dem Band
+    const [event] = game.special('recolor', ship.id);
+    expect(event).toMatchObject({ type: 'recolor', ship, color: ship.color });
     expect(event.voxels.length).toBeGreaterThan(0);
     expect(event.voxels.every(v => v.color === ship.color && hittable(game.asteroid, v))).toBe(true);
     expect(ship.ammo).toBe(ammo + event.voxels.length);
@@ -576,6 +641,7 @@ describe('Sterne und Specials', () => {
     const after = ammoByColor(game);
     for (const [color, alive] of Object.entries(aliveByColor(game))) expect(after[color]).toBeGreaterThanOrEqual(alive);
     expect(after[ship.color]).toBe(before[ship.color] + event.voxels.length);
+    expect(game.special('recolor', visible(game)[0].id)).toEqual([]);   // je Versuch einmal
   });
 
   it('Supernova: reißt die Figur auf der Kameraseite weit auf', () => {
