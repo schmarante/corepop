@@ -25,7 +25,8 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   **Stil: Comic** – übertriebene Proportionen (bauchig, kopflastig, geschwungen), Details genau 1 Voxel breit
   (sonst überdecken sie die Grundfarbe). Prüfen per Text-Vorderansicht (Voxel mit größtem z je x/y) oder /dev/modelle/. Haut = äußerste `skin` Voxel + alles von außen
   schräg Sichtbare. **Nur eigene Designs** – keine erkennbaren fremden Marken/Designs, auch nicht verpixelt.
-- Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Ziehen dreht zusätzlich.
+- Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Ziehen dreht zusätzlich; beim Loslassen dreht er mit dem Schwung weiter und läuft weich aus
+  (`ui/drag-rotate.js` misst die Wischgeschwindigkeit → `asteroid.fling`, Reibung `FLING_FRICTION`; Anfassen hält an).
 - Unten stehen echte 3D-Flieger (`render/queue-view.js`) in Spalten, die Munition als Zahl auf dem Rumpf. **Je
   Hangar-Plattform eine Spalte darunter** (`level.slots`, 3–5). Nur das vorderste Schiff einer Spalte ist antippbar und
   fliegt **nur auf die Plattform direkt darüber** (belegt → wackelt, vorderes Schiff ist abgedunkelt).

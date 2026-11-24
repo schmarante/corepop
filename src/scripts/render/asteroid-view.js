@@ -30,6 +30,8 @@ const BEVEL = 0.16;      // Rundung der Kanten (Anteil der Voxelgröße)
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const PULSE = 5;         // rad/s – Puls der Spezial-Würfel
 const PULSE_WHITE = 0.55; // Anteil Weiß auf dem Höhepunkt des Pulses
+const FLING_FRICTION = 2.2; // 1/s – wie schnell der Schwung nach dem Wischen ausläuft (nach ~1 s gut ein Zehntel)
+const FLING_MAX = 12;       // rad/s – mehr Schwung gibt ein Wisch nie
 const RECOLOR = 0.45;     // s – Farbwechsel (Special): Aufblitzen und Übergang
 const SHRINK = 0.18;     // s – getroffener Voxel blitzt auf und schrumpft weg
 const FLASH = 0.6;       // Anteil Weiß beim Aufblitzen
@@ -125,6 +127,7 @@ export function createAsteroidView(scene, asteroid, level) {
   }
 
   const radius = Math.max(...asteroid.voxels.map(v => Math.hypot(v.x, v.y, v.z)));   // in Voxeln
+  let flingVelocity = 0;   // rad/s – Schwung nach dem Wischen
   let time = Math.random() * 100;   // Startpunkt im Taumeln – nur Optik, beeinflusst die Spiellogik nicht direkt
   let baseY = 0;
   let appear = 0;          // s seit dem Laden
@@ -179,6 +182,10 @@ export function createAsteroidView(scene, asteroid, level) {
     rotate(radians) {
       spin.rotation.y += radians;
     },
+    /** Schwung nach dem Wischen (rad/s): dreht weiter und läuft weich aus; 0 = sofort anhalten (angefasst) */
+    fling(radiansPerSecond) {
+      flingVelocity = Math.max(-FLING_MAX, Math.min(FLING_MAX, radiansPerSecond));
+    },
     /** true, sobald das Herausschrumpfen fertig ist (dann dispose) */
     get gone() {
       return vanish !== null && vanish >= VANISH;
@@ -188,6 +195,12 @@ export function createAsteroidView(scene, asteroid, level) {
     },
     update(dt) {
       time += dt;
+      // Schwung vom Wischen: weiterdrehen, bildratenunabhängig abbremsen
+      if (flingVelocity) {
+        spin.rotation.y += flingVelocity * dt;
+        flingVelocity *= Math.exp(-FLING_FRICTION * dt);
+        if (Math.abs(flingVelocity) < 0.02) flingVelocity = 0;
+      }
       ao.update(dt);
       appear += dt;
       const grow = vanish === null ? easeOutBack(appear / APPEAR) : 1 - easeInCubic((vanish += dt) / VANISH);

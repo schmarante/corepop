@@ -60,7 +60,10 @@ export function startSolo(root, locale) {
     return hit && { column: hit.column, stepPx: (hit.step / 2) * box.width };
   }
   attachQueueInput(canvas, { pick: pickColumn, onLaunch: launch, onSlide: slide });
-  attachDragRotate(canvas, radians => views?.asteroid.rotate(radians), { accept: e => !pickColumn(e.clientX, e.clientY) });
+  attachDragRotate(canvas, radians => views?.asteroid.rotate(radians), {
+    accept: e => !pickColumn(e.clientX, e.clientY),
+    onFling: velocity => views?.asteroid.fling(velocity),   // loslassen: dreht nach und läuft aus
+  });
   const options = document.querySelector('[data-options]');   // Optionen offen → Spiel pausiert
   const hint = createHint($('[data-hint]'));
   // Specials: je Versuch einmal; Farbwechsel wartet auf das Antippen eines Fliegers (picking)
