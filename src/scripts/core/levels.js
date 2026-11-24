@@ -16,22 +16,29 @@
 //            Reserve = verzeihender, aber auch mehr übrige Schiffe fertiger Farben (Fallen, die blind gestartet
 //            für immer blockieren)
 //   crystals Anzahl Riss-Kristalle in den inneren Kernschichten (wunde Punkte, sprengen ein Bruchstück ab)
-//   boss     Zwischenboss (größer, mehr Würfel) – optional
+//   boss     Boss (größer, mehr Würfel) – auf Level 5, 10 und 15
 //   seed     Startwert für den Zufall – gleicher Seed, gleiches Level
 //
-// Look-Phase: je Figur ein Level (Übersicht: /dev/modelle/).
+// Je Figur ein Level (Übersicht: /dev/modelle/), Bosse auf 5, 10 und 15.
 export const LEVELS = [
   { model: { type: 'football' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 5, belt: 0.25, shuffle: 0, crystals: 2, seed: 'corepop-football' },
   { model: { type: 'basketball' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 100: 2, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.9, crystals: 2, seed: 'corepop-basketball' },
   { model: { type: 'heart' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['o']], spin: 0.35, ships: { 100: 1 }, slots: 4, belt: 0.25, shuffle: 1.2, crystals: 2, seed: 'corepop-heart' },
   { model: { type: 'poop' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-poop' },
-  { model: { type: 'rocket' }, radius: 11, skin: 1, core: [['y'], ['g', 'p'], ['o']], spin: 0.35, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 1.2, crystals: 2, seed: 'corepop-rocket' },
-  // Zwischenboss: deutlich größer
+  // Boss
   { model: { type: 'pirateShip' }, radius: 26, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-pirate-ship' },
+  { model: { type: 'rocket' }, radius: 11, skin: 1, core: [['y'], ['g', 'p'], ['o']], spin: 0.35, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 1.2, crystals: 2, seed: 'corepop-rocket' },
   { model: { type: 'watermelon' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-watermelon' },
+  { model: { type: 'cherries' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-cherries' },
   { model: { type: 'avocado' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 2, 100: 1 }, slots: 3, belt: 0.25, shuffle: 1.2, crystals: 2, seed: 'corepop-avocado' },
+  // Boss
+  { model: { type: 'tank' }, radius: 24, skin: 1, core: [['y'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-tank' },
   { model: { type: 'popsicle' }, radius: 9, skin: 1, core: [['y'], ['b', 'g']], spin: 0.35, ships: { 50: 2, 100: 1 }, slots: 3, belt: 0.3, shuffle: 0, crystals: 2, seed: 'corepop-popsicle' },
+  { model: { type: 'panda' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-panda' },
   { model: { type: 'teddy' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-teddy' },
+  { model: { type: 'laughing' }, radius: 9, skin: 1, core: [['o'], ['g', 'p'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-laughing' },
+  // Boss
+  { model: { type: 'mask' }, radius: 24, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 2, boss: true, seed: 'corepop-mask' },
   { model: { type: 'chicken' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 3, seed: 'corepop-chicken' },
   { model: { type: 'mushroom' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-mushroom' },
   { model: { type: 'chest' }, radius: 10, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-chest' },

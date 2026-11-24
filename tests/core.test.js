@@ -434,6 +434,9 @@ describe('Riss-Kristalle', () => {
     for (const level of LEVELS) {
       const { crystals } = createGame(level).asteroid;
       expect(crystals).toHaveLength(level.crystals ?? 0);
+      // Figuren mit festen Kristallen (z. B. die Augen der Maske) legen sie bewusst an die Oberfläche
+      const fixed = MODELS[level.model.type].build({ radius: level.radius, ...level.model }, createRng(level.seed)).crystals;
+      if (fixed?.length) continue;
       for (const c of crystals) expect(c.layer).toBeGreaterThanOrEqual(Math.min(2, level.core.length));
     }
   });

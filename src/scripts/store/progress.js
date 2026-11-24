@@ -14,16 +14,16 @@ const KEY = 'corepop:v1';
 export const SPECIALS = [
   { id: 'pad', from: 2 },      // Plattform +1 – ab Level 3
   { id: 'recolor', from: 4 },  // Farbwechsel – ab Level 5
-  { id: 'nova', from: 6 },     // Supernova – nach dem Piratenschiff (Level 6)
+  { id: 'nova', from: 5 },     // Supernova – nach dem ersten Boss (Piratenschiff, Level 5)
 ];
 
 /** Flieger-Designs: ab wie vielen Sternen insgesamt (Reihenfolge = Menü) */
 export const DESIGNS = [
   { id: 'classic', stars: 0 },
   { id: 'paper', stars: 6 },
-  { id: 'gummy', stars: 14 },
-  { id: 'rocket', stars: 24 },
-  { id: 'ufo', stars: 34 },
+  { id: 'gummy', stars: 16 },
+  { id: 'rocket', stars: 30 },
+  { id: 'ufo', stars: 45 },
 ];
 
 function load() {

@@ -9,6 +9,8 @@ export const COLORS = {
   l: 0xc9e47a,   // Hellgrün (Avocado-Fruchtfleisch, Melonenstreifen)
   u: 0x8f5b3d,   // Braun (Teddy, Avocadokern, Schokolade)
   c: 0xf3d6a2,   // Creme (Teddyschnauze, Eisstiel, Pilz-Unterseite)
+  k: 0x474c72,   // Graphit (Panzer, Maske)
+  z: 0x9aa1c4,   // Stahlgrau (Panzer, Maske)
   // Spezial
   x: 0xff2bd6,   // Spreng-Magenta: Spreng-Blöcke und Spreng-Flieger (core/asteroid.js BLAST)
   // Kern

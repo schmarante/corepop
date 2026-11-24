@@ -5,6 +5,8 @@
 //   bounds  halbe Kantenlänge des Würfels, in dem gesucht wird (Voxel-Koordinaten −bounds … +bounds)
 //   solid   liegt an dieser Stelle ein Voxel?
 //   skin    Farbe der Außenhaut an dieser Stelle (Ids aus colors.js) – so wird die Figur erkennbar
+//   crystals  optional: feste Positionen der Spreng-Kristalle ([x, y, z] in Voxeln, z. B. die Augen einer Maske) –
+//             dann ersetzen sie die zufälligen aus `level.crystals`; je Punkt wird der nächste Voxel zum Kristall
 // Neue Figur: Datei in diesem Ordner, hier eintragen, in levels.js verwenden – erscheint automatisch in der
 // Dev-Übersicht (/dev/modelle/). Nur eigene Designs: keine erkennbaren fremden Figuren/Fahrzeuge/Logos, auch nicht
 // verpixelt. Erfahrung: bei ~16–20 Voxeln Durchmesser funktionieren nur markante, kontrastreiche Muster und Formen.
@@ -21,6 +23,11 @@ import { popsicleModel, SKIN_COLORS as POPSICLE_SKIN } from './popsicle.js';
 import { teddyModel, SKIN_COLORS as TEDDY_SKIN } from './teddy.js';
 import { chickenModel, SKIN_COLORS as CHICKEN_SKIN } from './chicken.js';
 import { mushroomModel, SKIN_COLORS as MUSHROOM_SKIN } from './mushroom.js';
+import { pandaModel, SKIN_COLORS as PANDA_SKIN } from './panda.js';
+import { cherriesModel, SKIN_COLORS as CHERRIES_SKIN } from './cherries.js';
+import { laughingModel, SKIN_COLORS as LAUGHING_SKIN } from './laughing.js';
+import { tankModel, SKIN_COLORS as TANK_SKIN } from './tank.js';
+import { maskModel, SKIN_COLORS as MASK_SKIN } from './mask.js';
 
 export const MODELS = {
   football: { build: footballModel, skinColors: FOOTBALL_SKIN },
@@ -36,4 +43,9 @@ export const MODELS = {
   mushroom: { build: mushroomModel, skinColors: MUSHROOM_SKIN },
   chest: { build: chestModel, skinColors: CHEST_SKIN },
   pirateShip: { build: pirateShipModel, skinColors: PIRATE_SHIP_SKIN },
+  panda: { build: pandaModel, skinColors: PANDA_SKIN },
+  cherries: { build: cherriesModel, skinColors: CHERRIES_SKIN },
+  laughing: { build: laughingModel, skinColors: LAUGHING_SKIN },
+  tank: { build: tankModel, skinColors: TANK_SKIN },
+  mask: { build: maskModel, skinColors: MASK_SKIN },
 };

@@ -20,7 +20,7 @@ corepop is a free color-sorting puzzle game in 3D. A figure made of candy-colore
   <img src="docs/screenshot-blast.webp" width="280" alt="A crystal explodes inside the heart and flings the cubes into space">
 </p>
 
-13 handmade figures in comic style (including a pirate ship as a boss with over 10,000 cubes), up to three stars per level, unlockable specials (extra pad, recolor, supernova) and ship designs (paper plane, gummy bear, retro rocket, mini UFO). No sign-up, no ads, no tracking – progress stays in the browser. Languages: German and English.
+18 handmade figures in comic style, with three bosses of over 10,000 cubes each (a pirate ship, a tank and a faceted mask whose eyes are explosive crystals), up to three stars per level, unlockable specials (extra pad, recolor, supernova) and ship designs (paper plane, gummy bear, retro rocket, mini UFO). No sign-up, no ads, no tracking – progress stays in the browser. Languages: German and English.
 
 ## Built with
 

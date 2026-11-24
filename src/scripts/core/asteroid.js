@@ -112,7 +112,7 @@ export function createAsteroid(level, rng) {
     const sector = Math.floor(angle * colors.length * 2 + k);
     v.color = colors[((sector % colors.length) + colors.length) % colors.length];
   }
-  placeCrystals(asteroid, level, rng);
+  placeCrystals(asteroid, level, rng, model.crystals);
   for (const v of voxels) {
     asteroid.aliveByColor.set(v.color, (asteroid.aliveByColor.get(v.color) ?? 0) + 1);
     if (!asteroid.targets.has(v.color)) asteroid.targets.set(v.color, new Set());
@@ -178,7 +178,29 @@ export const BLAST = 'x';
  *  der blinkende Würfel frei – seine Explosion (blastReach) reißt dann Kern und nahe Hülle auf. Mit etwas Abstand
  *  zueinander (crystalSpacing; erreicht die Druckwelle doch einen anderen, geht der mit hoch). Sie bekommen die
  *  Spreng-Farbe BLAST. */
-function placeCrystals(asteroid, level, rng) {
+function placeCrystals(asteroid, level, rng, fixed) {
+  // Figur legt die Kristalle selbst fest (z. B. die Augen einer Maske): je Punkt der nächstgelegene Voxel – auch in der
+  // Hülle, dann liegt er gleich frei und man muss ihn mit Spreng-Fliegern treffen
+  if (fixed?.length) {
+    for (const [px, py, pz] of fixed) {
+      let best = null;
+      let bestDistance = Infinity;
+      for (const v of asteroid.voxels) {
+        if (v.crystal) continue;
+        const d = Math.hypot(v.x - px, v.y - py, v.z - pz);
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = v;
+        }
+      }
+      if (!best) continue;
+      best.crystal = true;
+      best.baseColor = best.color;
+      best.color = BLAST;
+      asteroid.crystals.push(best);
+    }
+    return;
+  }
   const count = level.crystals ?? 0;
   if (!count) return;
   const minLayer = Math.min(2, level.core.length);

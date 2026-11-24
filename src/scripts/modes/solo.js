@@ -245,7 +245,7 @@ export function startSolo(root, locale) {
       return false;
     });
     if (!game || options?.open) return;
-    views.asteroid.rotate(game.level.spin * dt);
+    views.asteroid.rotate(game.spin * dt);   // je weniger übrig, desto langsamer (core/game.js → spin)
     views.asteroid.update(dt);
     handle(game.step(dt, views.asteroid.cameraInGrid(stage.camera), shipInGrid));
     views.hangar.update(game.slots, dt);

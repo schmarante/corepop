@@ -164,12 +164,13 @@ export function simulate(level, { bot = 'smart', seed = level.seed, tapEvery = 0
     }
   }
 
+  let angle = 0;
   while (game.state === 'play' && time < maxTime) {
     if (time >= nextTap) {
       (bot === 'random' ? randomTap : smartTap)();
       nextTap = time + tapEvery;
     }
-    const angle = level.spin * time;
+    angle += game.spin * dt;   // wie im Spiel: je weniger übrig, desto langsamer
     const camera = toGrid([0, -BODY_Y, CAMERA_DISTANCE], angle, size);
     const origin = slot => toGrid([(slot - (level.slots - 1) / 2) * spacing, HANGAR_Y - BODY_Y, SLOT_Z], angle, size);
     for (const e of game.step(dt, camera, origin)) {

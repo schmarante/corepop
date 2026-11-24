@@ -15,17 +15,22 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
 ## Kernmechanik (Prototyp)
 - **Figur + Lolli-Kern:** Die Außenhaut stellt eine erkennbare Figur dar (Modell in `core/models/`, z. B. Asteroid mit
   Kratern; später Mond, eigene Raumschiffe/Stationen …). Darunter liegt ein bunter Kern in Schichten wie bei einem
-  Lolli (`level.core`, mehrere Farben einer Schicht als Spirale). Modelle (je ein Level, Reihenfolge wie in `levels.js`): `football`, `basketball`, `heart`, `poop`
-  (Häufchen, eigenes Design), `rocket`, `pirateShip` (Zwischenboss, `boss: true`, Radius 26, ~10 900 Voxel, Comic-Schiff mit Totenkopf-Segel,
-  Kanonenrohren, Reling, Steuerrad, Hecklaterne, Wimpel, Anker), `watermelon` (halb, mit Kernen), `avocado` (halb, mit Kern), `popsicle` (Eis am
-  Stiel), `teddy` (Teddykopf), `chicken`, `mushroom` (Fliegenpilz), `chest` (Schatztruhe, klassisch). Gemeinsame
+  Lolli (`level.core`, mehrere Farben einer Schicht als Spirale). 18 Level, **Bosse auf 5, 10 und 15** (`boss: true`, ~10 000 Voxel), Reihenfolge wie in `levels.js`:
+  1 `football`, 2 `basketball`, 3 `heart`, 4 `poop` (Häufchen, eigenes Design), **5 `pirateShip`** (Radius 26, ~10 900
+  Voxel, Comic-Schiff mit Totenkopf-Segel, Kanonenrohren, Reling, Steuerrad, Hecklaterne, Wimpel, Anker), 6 `rocket`,
+  7 `watermelon` (halb, mit Kernen), 8 `cherries` (Kirschpaar), 9 `avocado` (halb, mit Kern), **10 `tank`** (Comic-
+  Panzer, eigenes Design), 11 `popsicle` (Eis am Stiel), 12 `panda` (Kopf), 13 `teddy` (Teddykopf), 14 `laughing`
+  (Lachgesicht mit Tränen – eigenes Design, kein Hersteller-Emoji), **15 `mask`** (eigene Low-Poly-Maske, facettiert;
+  die Augen sind Spreng-Kristalle an festen Stellen, `model.crystals` – bewusst nicht die Squid-Game-Masken), 16
+  `chicken`, 17 `mushroom` (Fliegenpilz), 18 `chest` (Schatztruhe). Gemeinsame
   Formhelfer: `models/shapes.js`. Erfahrung: Bei ~16–20 Voxeln Durchmesser funktionieren nur **markante, kontrastreiche
   Formen und Muster** – feine Details (Krater, Mondflecken) gehen unter; ein Asteroid und ein Mond wurden deshalb
   verworfen. Kernfarben dürfen nicht in der Haut vorkommen (Test).
   **Stil: Comic** – übertriebene Proportionen (bauchig, kopflastig, geschwungen), Details genau 1 Voxel breit
   (sonst überdecken sie die Grundfarbe). Prüfen per Text-Vorderansicht (Voxel mit größtem z je x/y) oder /dev/modelle/. Haut = äußerste `skin` Voxel + alles von außen
   schräg Sichtbare. **Nur eigene Designs** – keine erkennbaren fremden Marken/Designs, auch nicht verpixelt.
-- Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Ziehen dreht zusätzlich; beim Loslassen dreht er mit dem Schwung weiter und läuft weich aus
+- Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Je weniger Würfel übrig sind,
+  desto langsamer dreht er (`game.spin`, bis `SPIN_MIN` = 35 % – er „verliert Masse“; Spiel und Bots gleich). Ziehen dreht zusätzlich; beim Loslassen dreht er mit dem Schwung weiter und läuft weich aus
   (`ui/drag-rotate.js` misst die Wischgeschwindigkeit → `asteroid.fling`, Reibung `FLING_FRICTION`; Anfassen hält an).
 - **Förderband (seit 2026-11-24, ersetzt „Spalte = Plattform + Wischen“):** Unter dem Deck läuft ein Band mit
   `BELT_LENGTH` (8) sichtbaren Plätzen nach links (`level.belt` Plätze/s, `DEFAULT_BELT_SPEED`; `core/game.js` →

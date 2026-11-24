@@ -77,6 +77,8 @@ export const STAR_THREE = 1;
 /** Specials: so viele Blöcke färbt der Farbwechsel höchstens um; so viel stärker als ein Kristall ist die Supernova */
 const RECOLOR_MAX = 60;
 const NOVA_POWER = 1.9;
+/** Eigendrehung, wenn fast nichts mehr übrig ist (Anteil von level.spin) – game.spin */
+export const SPIN_MIN = 0.35;
 /** s ohne Ziel, ab denen ein Schiff als blockiert gilt (Darstellung: Plattform warnt, Schiff dimmt) */
 export const BLOCKED_AFTER = 0.6;
 
@@ -205,6 +207,10 @@ export function createGame(level, { seed = level.seed } = {}) {
     },
     get destroyed() {
       return asteroid.total - asteroid.alive;
+    },
+    /** Eigendrehung jetzt (rad/s): je weniger Würfel übrig, desto langsamer (sie verliert Masse) – bis SPIN_MIN */
+    get spin() {
+      return level.spin * (SPIN_MIN + (1 - SPIN_MIN) * (asteroid.alive / asteroid.total));
     },
 
     /** Wird dieses Schiff noch gebraucht (ohne es hätte seine Farbe zu wenig Munition)? Herunterfallen = verloren. */
