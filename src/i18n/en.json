@@ -1,7 +1,9 @@
 {
   "meta": {
     "title": "corepop – a colour puzzle with spaceships",
-    "description": "Launch your spaceships and take figures made of colourful blocks apart layer by layer – every ship only hits its own colour."
+    "description": "Launch your spaceships and take figures made of colourful blocks apart layer by layer – every ship only hits its own colour.",
+    "ogLocale": "en_GB",
+    "imageAlt": "corepop logo with a blast crystal next to a game scene: a heart made of candy cubes explodes while spaceships fire from the deck."
   },
   "nav": {
     "home": "To the start page"

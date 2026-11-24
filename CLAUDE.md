@@ -198,6 +198,13 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - Leistung: `asteroid.targets` (freiliegende lebende Voxel je Farbe) wird laufend gepflegt – die Zielsuche geht nur
   diese durch.
 
+## Teilen-Vorschau (SEO)
+- `layouts/Base.astro`: `canonical`, Open Graph (`og:*` inkl. `og:locale` + Alternativen aus `meta.ogLocale`) und
+  Twitter-Card (`summary_large_image`). Absolute Adressen über `SITE_URL` (GitHub Actions setzt sie; lokal relativ).
+- Vorschaubild `public/og-image.jpg` (1200 × 630): Logo mit Kristall, Slogan, Explosion am Herz – Bildtext in
+  `meta.imageAlt`. Neu erzeugen: HTML-Seite im Headless-Browser fotografieren (Schrift Sour Gummy), kein englischer
+  Spieltext im Bild.
+
 ## Mehrsprachigkeit
 - Nie UI-Texte hart codieren. Jeder Schlüssel steht in jeder Sprachdatei (Test prüft Schlüssel + Platzhalter).
 - Seiten-Slugs sind übersetzt (`SLUGS` in `src/i18n/index.js`, nur ASCII). Sprache: `?lang=` > gespeicherte Wahl

@@ -1,7 +1,9 @@
 {
   "meta": {
     "title": "corepop – Farb-Puzzle mit Raumschiffen",
-    "description": "Schick deine Raumschiffe los und zerlege Figuren aus bunten Blöcken Schicht für Schicht – jedes Schiff trifft nur seine eigene Farbe."
+    "description": "Schick deine Raumschiffe los und zerlege Figuren aus bunten Blöcken Schicht für Schicht – jedes Schiff trifft nur seine eigene Farbe.",
+    "ogLocale": "de_DE",
+    "imageAlt": "corepop-Logo mit Spreng-Kristall neben einer Szene aus dem Spiel: ein Herz aus Candy-Würfeln explodiert, Raumschiffe schießen vom Deck."
   },
   "nav": {
     "home": "Zur Startseite"
