@@ -1,6 +1,6 @@
 // Special-Leiste im Spiel (components/SoloGame.astro): runde Candy-Knöpfe rechts unter der Kopfzeile. Sichtbar erst,
 // wenn freigeschaltet (store/progress.js → SPECIALS), je Versuch einmal einsetzbar (danach blass). Der Farbwechsel
-// braucht noch ein Ziel: Knopf pulsiert, bis ein Flieger angetippt wird (nochmal tippen bricht ab).
+// und das Zurückziehen brauchen noch ein Ziel: Knopf pulsiert, bis ein Flieger (Band bzw. Deck) angetippt wird (nochmal tippen bricht ab).
 /**
  * @param {HTMLElement} root
  * @param {{ onUse: (id: string) => void }} handlers

@@ -1,5 +1,5 @@
 ---
-// Optionen: Sprache wählen und „Über corepop“ (Bibliotheken, Schrift, Lizenzen). Ein <dialog> pro Seite (Base.astro),
+// Optionen: Sprache, Ton (Musik/Effekte), Flieger-Design und „Über corepop“ (Bibliotheken, Schrift, Lizenzen). Ein <dialog> pro Seite (Base.astro),
 // geöffnet über das Zahnrad (OptionsButton.astro). Während er offen ist, pausiert das Spiel (modes/solo.js).
 import { useTranslations, localePath, LANGUAGES } from '../i18n/index.js';
 import { RUNTIME, ASSETS, BUILD, ABOUT } from '../data/credits.js';
@@ -19,7 +19,7 @@ const groups = [
 ];
 ---
 
-<dialog data-options aria-labelledby="options-title"
+<dialog data-options data-on={t('sound.on')} data-off={t('sound.off')} aria-labelledby="options-title"
         class="m-auto max-h-[min(42rem,calc(100dvh-2rem))] w-[min(28rem,calc(100%-2rem))] overflow-y-auto overscroll-contain rounded-3xl border-2 border-line bg-surface p-0 text-text">
   <div class="sticky top-0 z-10 flex items-center justify-between bg-surface/95 px-5 pt-4 pb-3 backdrop-blur">
     <h2 id="options-title" class="font-logo text-3xl font-black">{t('options.title')}</h2>
@@ -39,6 +39,22 @@ const groups = [
               {name}
               {code === locale && <span aria-hidden="true">✓</span>}
             </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    {/* Ton: Musik und Effekte getrennt (store/sound.js, Klartext); Stand nur im Browser (Skript unten) */}
+    <section class="flex flex-col gap-3">
+      <h3 class="text-sm font-bold uppercase tracking-wide text-muted">{t('sound.title')}</h3>
+      <ul class="grid grid-cols-2 gap-3">
+        {(['music', 'sfx'] as const).map(key => (
+          <li>
+            <button type="button" data-sound={key} aria-pressed="true"
+                    class="candy flex w-full items-center justify-center gap-2 rounded-2xl px-3 py-3 font-extrabold">
+              <span>{t(`sound.${key}`)}</span>
+              <span data-sound-state class="text-sm opacity-80"></span>
+            </button>
           </li>
         ))}
       </ul>
@@ -94,34 +110,59 @@ const groups = [
 
 <script>
   import { designUnlocked, shipDesign, setShipDesign } from '../scripts/store/progress.js';
+  import { soundSettings, setSoundSetting } from '../scripts/store/sound.js';
 
-  const dialog = document.querySelector<HTMLDialogElement>('[data-options]')!;
-  // Flieger-Designs: gesperrte mit Schloss + nötigen Sternen, das gewählte hervorgehoben (gilt ab dem nächsten Level)
-  const designButtons = [...dialog.querySelectorAll<HTMLButtonElement>('[data-design]')];
-  function showDesigns() {
-    const chosen = shipDesign();
-    for (const button of designButtons) {
-      const id = button.dataset.design!;
-      const open = designUnlocked(id);
-      button.querySelector<HTMLElement>('[data-design-lock]')!.hidden = open;
-      button.setAttribute('aria-disabled', String(!open));
-      button.setAttribute('aria-pressed', String(id === chosen));
-      button.style.setProperty('--c', id === chosen ? 'var(--color-accent)' : '#4b5199');
+  // je Seitenaufruf neu (Astro ClientRouter tauscht den Dialog mit der Seite aus)
+  document.addEventListener('astro:page-load', () => {
+    const dialog = document.querySelector<HTMLDialogElement>('[data-options]');
+    if (!dialog) return;
+    // Flieger-Designs: gesperrte mit Schloss + nötigen Sternen, das gewählte hervorgehoben (gilt ab dem nächsten Level)
+    const designButtons = [...dialog.querySelectorAll<HTMLButtonElement>('[data-design]')];
+    function showDesigns() {
+      const chosen = shipDesign();
+      for (const button of designButtons) {
+        const id = button.dataset.design!;
+        const open = designUnlocked(id);
+        button.querySelector<HTMLElement>('[data-design-lock]')!.hidden = open;
+        button.setAttribute('aria-disabled', String(!open));
+        button.setAttribute('aria-pressed', String(id === chosen));
+        button.style.setProperty('--c', id === chosen ? 'var(--color-accent)' : '#4b5199');
+      }
     }
-  }
-  for (const button of designButtons)
-    button.addEventListener('click', () => {
-      if (button.getAttribute('aria-disabled') === 'true') return;
-      setShipDesign(button.dataset.design!);
-      showDesigns();
-    });
-  document.querySelectorAll('[data-options-open]').forEach(button =>
-    button.addEventListener('click', () => {
-      showDesigns();
-      dialog.showModal();
-    }),
-  );
-  dialog.querySelector('[data-options-close]')!.addEventListener('click', () => dialog.close());
-  // Klick auf den abgedunkelten Rand schließt (das Ziel ist dann der <dialog> selbst, nicht sein Inhalt)
-  dialog.addEventListener('click', e => e.target === dialog && dialog.close());
+    for (const button of designButtons)
+      button.addEventListener('click', () => {
+        if (button.getAttribute('aria-disabled') === 'true') return;
+        setShipDesign(button.dataset.design!);
+        showDesigns();
+      });
+    document.querySelectorAll('[data-options-open]').forEach(button =>
+      button.addEventListener('click', () => {
+        showDesigns();
+        dialog.showModal();
+      }),
+    );
+    // Ton an/aus
+    const soundButtons = [...dialog.querySelectorAll<HTMLButtonElement>('[data-sound]')];
+    function showSound(settings = soundSettings()) {
+      for (const button of soundButtons) {
+        const on = settings[button.dataset.sound as 'music' | 'sfx'];
+        button.setAttribute('aria-pressed', String(on));
+        button.style.setProperty('--c', on ? 'var(--color-accent)' : '#4b5199');
+        button.querySelector('[data-sound-state]')!.textContent = on ? dialog.dataset.on! : dialog.dataset.off!;
+      }
+    }
+    for (const button of soundButtons)
+      button.addEventListener('click', () => {
+        const key = button.dataset.sound as 'music' | 'sfx';
+        setSoundSetting(key, button.getAttribute('aria-pressed') !== 'true');
+      });
+    // Fenster-Ereignis: beim Seitenwechsel abmelden (der Dialog ist dann ein neuer)
+    const leave = new AbortController();
+    addEventListener('corepop:sound', e => showSound((e as CustomEvent).detail), { signal: leave.signal });
+    document.addEventListener('astro:before-swap', () => leave.abort(), { once: true });
+    showSound();
+    dialog.querySelector('[data-options-close]')!.addEventListener('click', () => dialog.close());
+    // Klick auf den abgedunkelten Rand schließt (das Ziel ist dann der <dialog> selbst, nicht sein Inhalt)
+    dialog.addEventListener('click', e => e.target === dialog && dialog.close());
+  });
 </script>

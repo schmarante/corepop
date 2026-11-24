@@ -20,5 +20,9 @@ const { class: className = 'text-7xl' } = Astro.props;
 <script>
   import { startLogoGem } from '../scripts/render/logo-gem.js';
 
-  document.querySelectorAll<HTMLCanvasElement>('[data-logo-gem]').forEach(canvas => startLogoGem(canvas));
+  // je Seitenaufruf neu (ClientRouter), beim Verlassen WebGL freigeben – sonst sammeln sich Kontexte an
+  document.addEventListener('astro:page-load', () => {
+    const stops = [...document.querySelectorAll<HTMLCanvasElement>('[data-logo-gem]')].map(canvas => startLogoGem(canvas));
+    document.addEventListener('astro:before-swap', () => stops.forEach(stop => stop?.()), { once: true });
+  });
 </script>

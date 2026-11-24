@@ -31,6 +31,7 @@ corepop is built on great open-source projects. Thanks to everyone who contribut
 | Project | Used for | License |
 |---|---|---|
 | [three.js](https://threejs.org) | 3D rendering | MIT |
+| [Tone.js](https://tonejs.github.io) | Music and sound effects, synthesized live | MIT |
 
 ### Font
 

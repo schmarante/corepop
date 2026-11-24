@@ -68,6 +68,11 @@ const t = useTranslations(locale);
 <script>
   import { startSolo } from '../scripts/modes/solo.js';
 
-  const root = document.querySelector<HTMLElement>('[data-solo]')!;
-  startSolo(root, root.dataset.locale!);
+  // je Seitenaufruf neu (ClientRouter), beim Verlassen aufräumen (Render-Schleife, WebGL, Tasten)
+  document.addEventListener('astro:page-load', () => {
+    const root = document.querySelector<HTMLElement>('[data-solo]');
+    if (!root) return;
+    const stop = startSolo(root, root.dataset.locale!);
+    document.addEventListener('astro:before-swap', stop, { once: true });
+  });
 </script>

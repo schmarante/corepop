@@ -58,6 +58,13 @@
     "language": "Language",
     "close": "Close"
   },
+  "sound": {
+    "title": "Sound",
+    "music": "Music",
+    "sfx": "Effects",
+    "on": "on",
+    "off": "off"
+  },
   "about": {
     "title": "About corepop",
     "intro": "corepop is a colour puzzle: your spaceships take block figures apart layer by layer. Every ship only hits its own colour.",
@@ -70,6 +77,7 @@
     "build": "For building",
     "libs": {
       "three": "3D rendering",
+      "tone": "Music and sound effects (all synthesized live)",
       "sour-gummy": "Logo font",
       "astro": "Generates the pages",
       "tailwindcss": "Styling (CSS)",
@@ -79,7 +87,7 @@
   "special": {
     "pad": {
       "name": "Pad +1",
-      "hint": "An extra pad floats above the deck – any front ship may land there if its own pad is taken."
+      "hint": "An extra pad floats above the deck – one more spot for your ships."
     },
     "recolor": {
       "name": "Recolor",
@@ -89,7 +97,12 @@
       "name": "Supernova",
       "hint": "A huge explosion tears the figure open."
     },
+    "recall": {
+      "name": "Recall",
+      "hint": "Call a ship back from the deck – it comes out of the hatch next."
+    },
     "pick": "Tap a ship on the belt – the hull turns into its colour",
+    "recallPick": "Tap a ship on the deck – it flies back to the belt",
     "unlocked": "{name} unlocked!"
   },
   "stars": {

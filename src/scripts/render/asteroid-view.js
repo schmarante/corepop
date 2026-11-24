@@ -30,6 +30,9 @@ const BEVEL = 0.16;      // Rundung der Kanten (Anteil der Voxelgröße)
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const PULSE = 5;         // rad/s – Puls der Spezial-Würfel
 const PULSE_WHITE = 0.55; // Anteil Weiß auf dem Höhepunkt des Pulses
+const GLITCH_EVERY = [1, 2];   // s zwischen zwei Glitches (zufällig) – nur Boss-Level
+const GLITCH_TIME = 0.22;        // s – so lange zuckt die Figur
+const GLITCH_STEP = 0.055;       // s – je Schritt neue Versätze (ruckartig statt fließend)
 const FLING_FRICTION = 2.2; // 1/s – wie schnell der Schwung nach dem Wischen ausläuft (nach ~1 s gut ein Zehntel)
 const KICK_SPIN = 2.6;      // rad/s Drehschub je Einheit Drehmoment (Explosion, impulse)
 const KICK_WOBBLE = 2.2;    // rad/s Kippschub je Einheit Drehmoment
@@ -73,7 +76,7 @@ export const candyMaterial = (options = {}) => new THREE.MeshStandardMaterial({ 
 /** Geometrie eines Candy-Würfels der Kantenlänge `size` */
 export const candyBox = size => new RoundedBoxGeometry(size * GAP, size * GAP, size * GAP, 2, size * BEVEL);
 
-export function createAsteroidView(scene, asteroid, level) {
+export function createAsteroidView(scene, asteroid, level, { glitch = false } = {}) {
   const size = Math.min(1, 4 / level.radius);   // Voxelgröße: größere Körper bleiben gleich groß im Bild
   const tilt = new THREE.Group();
   tilt.rotation.x = TILT;
@@ -99,6 +102,29 @@ export function createAsteroidView(scene, asteroid, level) {
   mesh.castShadow = true;      // Sonnenschatten (stage.js): Kraterränder und Erhebungen werfen Schatten auf die Figur
   mesh.receiveShadow = true;
   spin.add(mesh);
+
+  // Glitch (Boss-Level): alle paar Sekunden zuckt die Figur kurz – springt ruckartig zur Seite, zwei Farbgeister
+  // (Magenta, Türkis) flackern versetzt auf. Die Geister teilen sich Geometrie und Würfel-Lagen mit der Figur
+  // (dieselbe instanceMatrix) und folgen ihrer Welt-Matrix mit einem Versatz quer zum Bild.
+  const ghosts = glitch && !matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? [0xff2bd6, 0x2bd6ff].map(color => {
+        const ghost = new THREE.InstancedMesh(mesh.geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), asteroid.voxels.length);
+        ghost.instanceMatrix = mesh.instanceMatrix;
+        ghost.matrixAutoUpdate = false;
+        ghost.matrixWorldAutoUpdate = false;   // Welt-Matrix setzen wir selbst (Figur + Versatz)
+        ghost.frustumCulled = false;
+        ghost.visible = false;
+        ghost.renderOrder = 3;
+        scene.add(ghost);
+        return ghost;
+      })
+    : [];
+  let nextGlitch = GLITCH_EVERY[0] + Math.random() * (GLITCH_EVERY[1] - GLITCH_EVERY[0]);
+  let glitchT = -1;   // s seit Beginn des Zuckens (-1 = ruhig)
+  let glitchStep = -1;
+  const glitchOffsets = [0, 0];
+  let glitchJump = 0;
+  const offsetMatrix = new THREE.Matrix4();
 
   /** Nachbarn (auch diagonal), die jetzt von außen sichtbar sind, ab sofort zeichnen */
   function revealAround(v) {
@@ -236,6 +262,36 @@ export function createAsteroidView(scene, asteroid, level) {
       }
       tilt.rotation.set(TILT + waves(TUMBLE_X, time) + wobble.x, 0, waves(TUMBLE_Z, time) + wobble.z);
       tilt.position.set(waves(SWAY_X, time), baseY + waves(SWAY_Y, time), 0);
+      // Glitch: wenige ruckartige Schritte (je Schritt neue Versätze), dazwischen ruhig
+      if (ghosts.length && vanish === null) {
+        if (glitchT < 0 && (nextGlitch -= dt) <= 0) glitchT = 0;
+        if (glitchT >= 0) {
+          glitchT += dt;
+          const step = Math.floor(glitchT / GLITCH_STEP);
+          if (step !== glitchStep) {
+            glitchStep = step;
+            const r = (radius + 0.5) * size;
+            glitchOffsets[0] = (0.06 + Math.random() * 0.12) * r;
+            glitchOffsets[1] = -(0.06 + Math.random() * 0.12) * r;
+            glitchJump = (Math.random() * 2 - 1) * 0.07 * r;
+          }
+          if (glitchT >= GLITCH_TIME) {
+            glitchT = -1;
+            glitchStep = -1;
+            glitchJump = 0;
+            nextGlitch = GLITCH_EVERY[0] + Math.random() * (GLITCH_EVERY[1] - GLITCH_EVERY[0]);
+          }
+        }
+        const on = glitchT >= 0;
+        tilt.position.x += glitchJump;
+        tilt.updateMatrixWorld(true);
+        ghosts.forEach((ghost, k) => {
+          ghost.visible = on;
+          if (!on) return;
+          ghost.matrixWorld.copy(offsetMatrix.makeTranslation(glitchOffsets[k], 0, 0)).multiply(spin.matrixWorld);
+          ghost.material.opacity = 0.16 + Math.random() * 0.14;   // flackert
+        });
+      }
 
       if (dying.size) {
         for (const [i, t] of dying) {
@@ -452,6 +508,10 @@ export function createAsteroidView(scene, asteroid, level) {
         glow.material.dispose();
       }
       scene.remove(tilt);
+      for (const ghost of ghosts) {
+        scene.remove(ghost);
+        ghost.material.dispose();
+      }
       mesh.geometry.dispose();
       mesh.material.dispose();
       mesh.dispose();

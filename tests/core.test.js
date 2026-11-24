@@ -647,6 +647,19 @@ describe('Sterne und Specials', () => {
     expect(game.special('recolor', visible(game)[0].id)).toEqual([]);   // je Versuch einmal
   });
 
+  it('Zurückziehen: Schiff auf der Plattform kommt mit Restmunition als Nächstes aus der Luke – je Versuch einmal', () => {
+    const game = createGame({ ...LEVELS[0], crystals: 0 });
+    const [event] = launchAny(game);
+    const { ship, slot } = event;
+    expect(game.special('recall', slot)).toEqual([]);   // landet noch – erst schussbereit zurückholbar
+    for (let k = 0; k < 200 && game.slots[slot]?.phase !== 'ready'; k++) game.step(0.01, { x: 0, y: 0, z: 30 });
+    expect(game.slots[slot]?.ship).toBe(ship);
+    expect(game.special('recall', slot)).toEqual([{ type: 'recall', ship, slot }]);
+    expect(game.slots[slot]).toBeNull();
+    expect(game.queue[0]).toBe(ship);
+    expect(game.special('recall', slot)).toEqual([]);
+  });
+
   it('Supernova: reißt die Figur auf der Kameraseite weit auf', () => {
     const game = createGame(LEVELS[0]);
     const before = game.destroyed;

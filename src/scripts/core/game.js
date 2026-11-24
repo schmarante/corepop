@@ -4,7 +4,7 @@
 //   game.launch(shipId, prefer)    → Schiff vom Förderband auf eine freie Plattform (bevorzugt Slot `prefer`)
 //   game.step(dt, camera, origin)  → Zeit vorspulen (Band läuft, Schiffe schießen); liefert Ereignisse für Darstellung,
 //                                    UI und später das Netzwerk
-//   game.special(id, …)            → Special einsetzen (je Versuch einmal): 'pad' | 'recolor' | 'nova', siehe unten
+//   game.special(id, …)            → Special einsetzen (je Versuch einmal): 'pad' | 'recolor' | 'nova' | 'recall'
 //   game.stars()                   → 0 … 3 Sterne (nach dem Sieg), aus game.stats
 //
 // Förderband: Unter dem Deck läuft ein Band mit BELT_LENGTH sichtbaren Plätzen nach links (Platz 0 = Bandende links,
@@ -46,6 +46,8 @@
 //   { type: 'free', slot }                Slot wieder frei
 //   { type: 'pad', slot }                 Special: Zusatz-Plattform `slot`
 //   { type: 'recolor', ship, voxels, color }  Special Farbwechsel: `voxels` haben jetzt `color`, `ship` +Munition
+//   { type: 'recall', ship, slot }        Special Zurückziehen: Schiff verlässt Slot `slot`, kommt als nächstes aus
+//                                         der Luke wieder aufs Band (Restmunition bleibt)
 //   { type: 'won' }
 //   { type: 'lost', reason, color? }      reason 'jam': alle Plattformen mit blockierten Schiffen belegt;
 //                                         'ammo': für `color` reicht die Munition nicht mehr (Schiff heruntergefallen)
@@ -102,6 +104,7 @@ export function createGame(level, { seed = level.seed } = {}) {
   const used = new Set();   // eingesetzte Specials (je Versuch einmal)
   /** Auswertung: Fehlstarts (gestartet, dann blockiert), heruntergefallene Munition, verlorene Spreng-Flieger */
   const stats = { misfires: 0, dropped: 0, bombersLost: 0 };
+  const shooter = new WeakMap();   // Schuss → Slot-Eintrag des Schiffs (der Slot kann inzwischen frei sein: Zurückziehen)
   /** alle wartenden Schiffe: auf dem Band, dann in der Luke (hinterstes zuletzt) */
   const waiting = () => [...belt.map(item => item.ship), ...queue];
   let shots = [];
@@ -269,6 +272,8 @@ export function createGame(level, { seed = level.seed } = {}) {
      *   'recolor', shipId          die äußersten Blöcke anderer Farben werden zur Farbe dieses Schiffs auf dem Band –
      *                              so viele, wie es Munition hat (höchstens RECOLOR_MAX; es bekommt die Schüsse dazu)
      *   'nova', camera             Riesen-Explosion am Punkt der Figur, der am weitesten zur Kamera zeigt
+     *   'recall', slot             Schiff auf dieser Plattform zurückziehen (z. B. blockiert): fliegt zur Luke und
+     *                              kommt als nächstes wieder aufs Band – nur schussbereit (nicht beim Landen/Abflug)
      * @returns {object[]} Ereignisse (leer, wenn nicht möglich)
      */
     special(id, arg) {
@@ -317,6 +322,12 @@ export function createGame(level, { seed = level.seed } = {}) {
         for (const { voxel } of hits) removeVoxel(asteroid, voxel);
         events.push({ type: 'break', crystal: center, voxels: hits.map(h => h.voxel), energy: hits.map(h => h.energy), mass: hits.map(h => h.mass), nova: true });
         for (const { voxel } of hits) if (voxel.crystal) breakOff(voxel, events);
+      } else if (id === 'recall') {
+        const entry = slots[arg];
+        if (!entry || entry.phase !== 'ready') return events;   // Schüsse in der Luft fliegen weiter
+        slots[arg] = null;
+        queue.unshift(entry.ship);   // nächster aus der Luke
+        events.push({ type: 'recall', ship: entry.ship, slot: arg });
       } else return events;
       used.add(id);
       return events;
@@ -381,6 +392,7 @@ export function createGame(level, { seed = level.seed } = {}) {
           if (!entry.misfire && entry.idle >= BLOCKED_AFTER && entry.ship.ammo > 0) {
             entry.misfire = true;
             stats.misfires++;
+            events.push({ type: 'blocked', ship: entry.ship, slot });
           }
           if (entry.ship.ammo > 0 && entry.cooldown <= 0) {
             const target = findTarget(entry.ship.color, camera, origin?.(slot));
@@ -393,6 +405,7 @@ export function createGame(level, { seed = level.seed } = {}) {
               entry.cooldown = TIMING.fireEvery;
               entry.idle = 0;
               const shot = { id: nextShot++, slot, voxel, normal, t: 0 };   // normal: Eintrittsfläche (Raster)
+              shooter.set(shot, entry);
               shots.push(shot);
               events.push({ type: 'fire', ship: entry.ship, slot, shot });
             }
@@ -411,7 +424,7 @@ export function createGame(level, { seed = level.seed } = {}) {
       shots = shots.filter(shot => {
         shot.t += dt / TIMING.shot;
         if (shot.t < 1) return true;
-        if (slots[shot.slot]) slots[shot.slot].inFlight--;
+        shooter.get(shot).inFlight--;
         if (!shot.voxel.alive) {
           events.push({ type: 'fizzle', shot });
           return false;

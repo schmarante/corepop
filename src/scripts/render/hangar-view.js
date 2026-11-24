@@ -9,7 +9,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { TIMING, BLOCKED_AFTER } from '../core/game.js';
 import { createShipModel } from './ship-model.js';
 import { candyMaterial } from './asteroid-view.js';
-import { clamp01, easeInCubic, easeOutBack, easeOutCubic } from './easing.js';
+import { clamp01, easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic } from './easing.js';
 
 export const SLOT_Z = 2;
 /** Abstand der Plattformen (= Spalten der Warteschlange, render/queue-view.js) */
@@ -33,6 +33,8 @@ const RECOIL_DECAY = 14;      // 1/s
 const EXTRA_RISE = 1.7;       // Zusatz-Plattform: so viel höher als das Deck …
 const EXTRA_SIDE = 0.7;       // … und so weit rechts vom Deckrand
 const EXTRA_MAX_X = 5.2;      // höchstens (bleibt im Bild, stage.js MIN_HALF_WIDTH)
+const RECALL_TIME = 0.8;      // s – Rückflug zur Luke (Special Zurückziehen)
+const RECALL_ARC = 1.6;       // Welteinheiten – so hoch steigt er dabei
 const LABEL_SIZE = 0.72;      // Munitions-Blase auf der Plattform
 const PAD_FREE = 0.95;        // Leuchtstärke freie / belegte Plattform
 const PAD_TAKEN = 0.25;
@@ -91,6 +93,9 @@ export function createHangarView(scene, slotCount) {
   let vanish = null;
   /** Slot-Index → { model, aim: Vector3 | null, recoil: number, t: number } */
   const ships = new Map();
+  /** zurückgezogene Schiffe auf dem Weg zur Luke: { model, t, from, to, size } */
+  const returning = [];
+  const pickPoint = new THREE.Vector3();
   const target = new THREE.Vector3();
   const dir = new THREE.Vector3();
   const aimDir = new THREE.Vector3();
@@ -172,8 +177,47 @@ export function createHangarView(scene, slotCount) {
       s.model.dispose();
       ships.delete(slot);
     },
+    /** Special Zurückziehen: Schiff hebt ab und fliegt zur Luke des Förderbands (`to`, Welt), schrumpft dort weg */
+    recall(slot, to) {
+      const s = ships.get(slot);
+      if (!s) return;
+      ships.delete(slot);
+      returning.push({ model: s.model, t: 0, from: s.model.group.position.clone(), to: root.worldToLocal(to.clone()), size: s.model.group.scale.x });
+    },
+    /** Welche Plattform (mit Schiff) liegt unter diesem Bildschirmpunkt (NDC)? @returns {number | null} */
+    pick(ndc, camera) {
+      let best = null;
+      let bestDistance = 0.12;   // NDC – etwa eine Plattformbreite
+      for (const [slot, s] of ships) {
+        const p = pickPoint.copy(s.model.group.position).project(camera);
+        const d = Math.hypot(p.x - ndc.x, (p.y - ndc.y) * 0.6);
+        if (d < bestDistance) {
+          bestDistance = d;
+          best = slot;
+        }
+      }
+      return best;
+    },
     update(slots, dt) {
       age += dt;
+      // zurückgezogene Schiffe: Bogen nach oben, dann hinunter zur Luke; Rumpf kippt in Flugrichtung, schrumpft am Ende
+      for (let i = returning.length - 1; i >= 0; i--) {
+        const r = returning[i];
+        r.t += dt;
+        const p = clamp01(r.t / RECALL_TIME);
+        const e = easeInOutCubic(p);
+        r.model.group.position.lerpVectors(r.from, r.to, e);
+        r.model.group.position.y += Math.sin(p * Math.PI) * RECALL_ARC;
+        r.model.hull.quaternion.slerp(q.setFromUnitVectors(UP, dir.copy(r.to).sub(r.from).normalize()), approach(TURN_AWAY_RATE, dt));
+        r.model.flame.scale.set(1, 0.6 + Math.random() * 0.4, 1);
+        r.model.label.material.opacity = 1 - p;
+        r.model.group.scale.setScalar(Math.max(0.001, r.size * (1 - easeInCubic(clamp01((p - 0.7) / 0.3)))));
+        if (p >= 1) {
+          root.remove(r.model.group);
+          r.model.dispose();
+          returning.splice(i, 1);
+        }
+      }
       const out = vanish === null ? 1 : 1 - easeInCubic((vanish += dt) / FADE);
       deck.scale.setScalar(Math.max(0.001, Math.min(easeOutBack(age / APPEAR), out)));
 

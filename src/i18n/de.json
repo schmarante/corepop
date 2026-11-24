@@ -58,6 +58,13 @@
     "language": "Sprache",
     "close": "Schließen"
   },
+  "sound": {
+    "title": "Ton",
+    "music": "Musik",
+    "sfx": "Effekte",
+    "on": "an",
+    "off": "aus"
+  },
   "about": {
     "title": "Über corepop",
     "intro": "corepop ist ein Farb-Puzzle: Deine Raumschiffe tragen Figuren aus Blöcken Schicht für Schicht ab. Jedes Schiff trifft nur seine eigene Farbe.",
@@ -70,6 +77,7 @@
     "build": "Zum Bauen",
     "libs": {
       "three": "3D-Darstellung",
+      "tone": "Musik und Soundeffekte (alles live synthetisiert)",
       "sour-gummy": "Schrift des Logos",
       "astro": "Erzeugt die Seiten",
       "tailwindcss": "Gestaltung (CSS)",
@@ -79,7 +87,7 @@
   "special": {
     "pad": {
       "name": "Plattform +1",
-      "hint": "Eine Zusatz-Plattform schwebt über dem Deck – jedes vordere Schiff darf hin, wenn seine eigene belegt ist."
+      "hint": "Eine Zusatz-Plattform schwebt über dem Deck – ein Platz mehr für deine Flieger."
     },
     "recolor": {
       "name": "Farbwechsel",
@@ -89,7 +97,12 @@
       "name": "Supernova",
       "hint": "Eine riesige Explosion reißt die Figur auf."
     },
+    "recall": {
+      "name": "Zurückziehen",
+      "hint": "Hol einen Flieger vom Deck zurück – er kommt als Nächstes wieder aufs Band."
+    },
     "pick": "Tippe einen Flieger auf dem Band an – die Hülle färbt sich in seine Farbe",
+    "recallPick": "Tippe einen Flieger auf dem Deck an – er fliegt zurück aufs Band",
     "unlocked": "{name} freigeschaltet!"
   },
   "stars": {

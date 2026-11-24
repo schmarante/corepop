@@ -7,6 +7,9 @@
 // - Chromatische Aberration zum Rand hin: Rot-, Grün- und Blauanteil werden radial gegeneinander versetzt
 //   (Rot nach außen, Blau nach innen), je weiter außen, desto stärker – wie bei einer echten Linse.
 // - Bei „Bewegung reduzieren“ ein stehender Sternenhimmel.
+// - Boss-Stimmung (`<html data-boss="1">`, gesetzt vom Spielmodus in Boss-Levels): langsam wabernder Plasma-Nebel in
+//   Magenta, Violett und Türkis hinter den Sternen, die Sterne glühen farbig, ziehen Leuchtspuren und fliegen etwas
+//   schneller. Blendet in ~1,5 s weich ein und aus (`mood` 0 … 1).
 import { startFrameLoop, BACKGROUND_FPS } from './frame-loop.js';
 
 const COUNT = 800;
@@ -17,6 +20,18 @@ const SPREAD = 0.25;         // wie weit die Sterne bei Tiefe 1 auseinanderliege
 const ABERRATION = 3.2;      // px Versatz der Farbanteile ganz am Rand (bei großen Sternen etwas mehr)
 const BRIGHT_SHARE = 0.04;   // Anteil besonders heller, etwas größerer Sterne
 const MAX_DPR = 1.5;         // Sterne sind weiche Punkte – volle Retina-Auflösung kostet nur Akku
+// Boss-Stimmung
+const MOOD_RATE = 0.7;       // 1/s – Ein- und Ausblenden
+const NEBULA = [             // Wolken: Farbe, Größe (Anteil der Bildgröße), Bahn (Frequenzen, Phase)
+  { color: [255, 43, 214], size: 0.75, fx: 0.031, fy: 0.023, phase: 0 },
+  { color: [122, 60, 255], size: 0.9, fx: 0.019, fy: 0.029, phase: 2.1 },
+  { color: [43, 214, 255], size: 0.6, fx: 0.027, fy: 0.017, phase: 4.2 },
+  { color: [255, 77, 140], size: 0.55, fx: 0.023, fy: 0.035, phase: 5.3 },
+];
+const NEBULA_ALPHA = 0.32;
+const GLOW = ['#ff6be8', '#9b7bff', '#6be4ff', '#ffd36b'];   // Sternfarben im Boss-Level
+const BOSS_SPEED = 0.7;      // so viel schneller fliegen die Sterne bei voller Stimmung
+const TRAIL = 0.9;           // Länge der Leuchtspur (Anteil der Bewegung über diese Zeit in s)
 
 export function startStarfield(canvas) {
   const ctx = canvas.getContext('2d');
@@ -25,6 +40,9 @@ export function startStarfield(canvas) {
   let w = 0;
   let h = 0;
   let dpr = 1;
+  let mood = 0;   // Boss-Stimmung 0 … 1
+  let time = Math.random() * 100;
+  const bossWanted = () => document.documentElement.dataset.boss === '1';
   const stars = Array.from({ length: COUNT }, () => spawn(0.05 + Math.random() * 0.95));
 
   /** neuer Stern in Tiefe z: Richtung von der Mitte (nie genau mittig), eigene Größe und Helligkeit */
@@ -41,6 +59,7 @@ export function startStarfield(canvas) {
       size: bright ? 0.9 + Math.random() * 0.4 : 0.45 + Math.random() ** 2 * 0.8,   // viele kleine, wenige größere
       light: bright ? 1 : 0.3 + Math.random() * 0.6,
       bright,
+      glow: GLOW[Math.floor(Math.random() * GLOW.length)],
     };
   }
 
@@ -60,9 +79,27 @@ export function startStarfield(canvas) {
     return [w / 2 + (s.x / depth) * scale * SPREAD, h / 2 + (s.y / depth) * scale * SPREAD];
   };
 
+  /** Plasma-Nebel: weiche, langsam wandernde Farbwolken (additiv) */
+  function drawNebula() {
+    const base = Math.max(w, h);
+    for (const n of NEBULA) {
+      const x = w * (0.5 + 0.38 * Math.sin(time * n.fx * 6.283 + n.phase));
+      const y = h * (0.45 + 0.32 * Math.sin(time * n.fy * 6.283 + n.phase * 1.7));
+      const r = base * n.size * (0.85 + 0.15 * Math.sin(time * 0.37 + n.phase));
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const [cr, cg, cb] = n.color;
+      g.addColorStop(0, `rgba(${cr},${cg},${cb},${NEBULA_ALPHA * mood})`);
+      g.addColorStop(0.45, `rgba(${cr},${cg},${cb},${NEBULA_ALPHA * 0.45 * mood})`);
+      g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
   function draw() {
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = 'lighter';   // Farbanteile addieren sich wieder zu Weiß, wo sie sich decken
+    if (mood > 0.01) drawNebula();
     const cx = w / 2;
     const cy = h / 2;
     const scale = Math.max(w, h) * 0.5;
@@ -81,6 +118,25 @@ export function startStarfield(canvas) {
       const r = Math.min(1.4, Math.hypot(dx, dy) / edge);
       const offset = Math.min(size * 0.45, ABERRATION * r * r);
       ctx.globalAlpha = alpha;
+      // Boss: Stern glüht farbig und zieht eine Leuchtspur zur Mitte hin (dorthin, wo er herkommt)
+      if (mood > 0.01) {
+        const trail = Math.min(0.45, SPEED * TRAIL * (0.6 + near)) * mood;
+        const back = { x: s.x, y: s.y, z: s.z + trail };
+        const [bx, by] = project(back, scale);
+        ctx.globalAlpha = alpha * mood;
+        ctx.strokeStyle = s.glow;
+        ctx.lineWidth = size * (1 + mood * 0.8);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+        ctx.fillStyle = s.glow;
+        const halo = size * (2.2 + near * 2) * mood;
+        ctx.globalAlpha = alpha * mood * 0.35;
+        ctx.fillRect(px - halo / 2, py - halo / 2, halo, halo);
+        ctx.globalAlpha = alpha;
+      }
       if (offset < 0.35) {
         ctx.fillStyle = '#fff';
         ctx.fillRect(px - size / 2, py - size / 2, size, size);
@@ -105,14 +161,22 @@ export function startStarfield(canvas) {
   canvas.classList.add('is-ready');   // weich einblenden (CSS)
   if (reduced) {
     for (const s of stars) s.born = 2;   // stehend: alle sofort voll sichtbar
+    // Boss-Stimmung ohne Bewegung: Nebel steht, wird beim Wechsel neu gezeichnet
+    new MutationObserver(() => {
+      mood = bossWanted() ? 1 : 0;
+      draw();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-boss'] });
+    mood = bossWanted() ? 1 : 0;
     draw();
     return;
   }
   startFrameLoop(dt => {
+    time += dt;
+    mood += ((bossWanted() ? 1 : 0) - mood) * (1 - Math.exp(-MOOD_RATE * dt));
     const scale = Math.max(w, h) * 0.5;
     const margin = 20;   // px außerhalb des Bildes, bevor ein Stern ersetzt wird (inkl. Farbversatz)
     for (const s of stars) {
-      s.z -= SPEED * dt * (0.6 + (1 - Math.min(1, s.z)));   // nahe Sterne etwas schneller
+      s.z -= SPEED * dt * (0.6 + (1 - Math.min(1, s.z))) * (1 + BOSS_SPEED * mood);   // nahe Sterne etwas schneller
       const [px, py] = project(s, scale);
       const gone = px < -margin || px > w + margin || py < -margin || py > h + margin;
       if (gone || s.z <= 0.005) Object.assign(s, spawn());

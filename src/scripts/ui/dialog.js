@@ -14,8 +14,8 @@ export function createDialog(el) {
   // Escape schließt nicht: ohne Entscheidung ginge es nicht weiter
   el.addEventListener('cancel', e => e.preventDefault());
   return {
-    /** `stars` (0 … 3, optional): Sterne leuchten nacheinander auf */
-    show({ heading, body = '', label, run, stars: count = null, starsLabel = '' }) {
+    /** `stars` (0 … 3, optional): Sterne leuchten nacheinander auf (`onStar(k)` je Stern – für den Klang) */
+    show({ heading, body = '', label, run, stars: count = null, starsLabel = '', onStar = () => {} }) {
       title.textContent = heading;
       for (const timer of timers) clearTimeout(timer);
       timers = [];
@@ -24,7 +24,10 @@ export function createDialog(el) {
         starRow.setAttribute('aria-label', starsLabel);
         stars.forEach((star, k) => {
           star.classList.remove('is-on');
-          if (count !== null && k < count) timers.push(setTimeout(() => star.classList.add('is-on'), 350 + k * 280));
+          if (count !== null && k < count) timers.push(setTimeout(() => {
+            star.classList.add('is-on');
+            onStar(k);
+          }, 350 + k * 280));
         });
       }
       text.textContent = body;

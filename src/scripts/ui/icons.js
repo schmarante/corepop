@@ -3,6 +3,7 @@
 export const SPECIAL_ICONS = {
   pad: '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="17" rx="8" ry="3"/><path d="M12 4v8M8 8h8"/></svg>',
   recolor: '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5s-5 5.6-5 9a5 5 0 0 0 10 0c0-3.4-5-9-5-9z"/><path d="M15 14h6M18 11l3 3-3 3"/></svg>',
+  recall: '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9a5 5 0 0 1 0 10h-2"/></svg>',
   nova: '<svg viewBox="0 0 24 24" aria-hidden="true" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>',
 };
 export const STAR_ICON =

@@ -10,6 +10,7 @@ export const ABOUT = {
 
 export const RUNTIME = [
   { id: 'three', name: 'three.js', url: 'https://threejs.org', license: 'MIT' },
+  { id: 'tone', name: 'Tone.js', url: 'https://tonejs.github.io', license: 'MIT' },
 ];
 
 export const ASSETS = [

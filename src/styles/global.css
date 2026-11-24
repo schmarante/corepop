@@ -81,6 +81,14 @@ html {
 .logo-pop.logo-word {
   animation-delay: 0.75s;
 }
+@keyframes logo-bounce {
+  0%, 40%, 100% { translate: 0 0; scale: 1 1; }
+  5%  { translate: 0 0; scale: 1.07 0.9; }          /* ducken */
+  13% { translate: 0 -0.13em; scale: 0.95 1.07; }   /* hochschnellen, gestreckt */
+  20% { translate: 0 0; scale: 1.09 0.89; }         /* platt landen */
+  27% { translate: 0 -0.02em; scale: 0.97 1.03; }   /* nachwippen */
+  33% { translate: 0 0; scale: 1.01 0.99; }
+}
 /* Spreng-Kristall als „o“ (render/logo-gem.js zeichnet ihn in WebGL). Bis er geladen ist, stehen die beiden „p“
    zusammen; dann wächst er heraus (logo-gem.js) und schiebt sie auseinander. Die Zeichenfläche ist größer als der
    Würfel, damit Glanz und Kanten nicht abgeschnitten werden. Ohne WebGL: flaches magentafarbenes Candy-Quadrat. */

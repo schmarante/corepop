@@ -15,6 +15,7 @@ export const SPECIALS = [
   { id: 'pad', from: 2 },      // Plattform +1 – ab Level 3
   { id: 'recolor', from: 4 },  // Farbwechsel – ab Level 5
   { id: 'nova', from: 5 },     // Supernova – nach dem ersten Boss (Piratenschiff, Level 5)
+  { id: 'recall', from: 7 },   // Zurückziehen – ab Level 8 (Flieger vom Deck zurück aufs Band)
 ];
 
 /** Flieger-Designs: ab wie vielen Sternen insgesamt (Reihenfolge = Menü) */

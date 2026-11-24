@@ -127,11 +127,14 @@ src/
              Speicherschlüssel gebunden; Klartext/geänderte/kopierte Werte werden ignoriert – Schummelschutz gegen die
              Entwicklerwerkzeuge, keine echte Sicherheit). progress.js: `corepop:v1` = { unlocked }. Neue Fortschritts-
              Daten immer darüber. Sprache und Bedienhinweis bleiben Klartext.
+    audio/   Klang (Tone.js, MIT): sound.js (getSound(): lädt Tone.js im Leerlauf, startet bei der ersten Geste, Busse
+             Musik/Effekte, Tab im Hintergrund → pausiert) · sfx.js (Effekte je Ereignis, alles synthetisch) ·
+             music.js (Sequenzer + Stücke `SONGS`: menu/game/boss, eigene Kompositionen)
     modes/   verdrahtet core + render + ui zu einem Spielmodus (solo.js; später battle.js)
 tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenztem Hangar gewinnbar“), i18n.test.js
 ```
 - `createGame(level, { seed })` liefert `launch(shipId, prefer)` und `step(dt, camera)`; alle geben **Ereignisse**
-  zurück (`launch`, `drop`, `defuse`, `fire`, `hit`, `fizzle`, `break`, `leave`, `free`, `won`, `lost`). Der Modus reicht sie an Darstellung/UI weiter –
+  zurück (`launch`, `drop`, `defuse`, `blocked`, `fire`, `hit`, `fizzle`, `break`, `leave`, `free`, `recall`, `won`, `lost`). Der Modus reicht sie an Darstellung/UI weiter –
   im Battle-Modus später auch ans Netzwerk.
 - Sichtbarkeit: Die Logik bekommt die Kameraposition im Voxel-Raster (`asteroidView.cameraInGrid(camera)`) und
   rechnet die Ausrichtung selbst. Konstanten: `FACING`, `BLOCKED_AFTER` und `TIMING` in `core/game.js`.
@@ -142,7 +145,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - **Nichts poppt rein oder raus.** Alles, was erscheint, verschwindet oder sich ändert, bekommt einen Übergang –
   kurz (150–300 ms) ist okay, hart nie. Beispiele: Voxel schrumpfen weg, Asteroid wächst beim Laden hinein und
   schrumpft beim Levelwechsel heraus, Hangar-Ringe/Labels blenden, Flieger fahren aufs Band und stürzen ab (`render/belt-view.js`),
-  Dialoge/Menüs/Toasts blenden (`@starting-style`, `allow-discrete`), Seitenwechsel per `@view-transition`,
+  Dialoge/Menüs/Toasts blenden (`@starting-style`, `allow-discrete`), Seitenwechsel per View Transition (ClientRouter),
   Canvas blenden ein (`.fade-in`), skriptabhängige Inhalte per `.reveal`. Easing-Kurven: `render/easing.js`.
   Förderband (3D): Flieger wachsen aus der Luke, fahren gleichmäßig, stürzen am Ende taumelnd ab.
   Bei `prefers-reduced-motion` Bewegung weglassen, Überblendungen dürfen bleiben.
@@ -167,10 +170,31 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   `src/data/credits.js`). Spiel pausiert, solange die Optionen offen sind. Bedienhinweis nur bis zum ersten Start.
 - Hintergrund: vollflächiger, dezenter Sternenflug (`components/Starfield.astro` → `render/starfield.js`, 2D-Canvas
   hinter allen Seiten). Die 3D-Bühne ist transparent darüber.
+- **Boss-Level:** `solo.js` setzt `<html data-boss="1">` → Sternenflug blendet Plasma-Nebel (Magenta/Violett/Türkis)
+  ein, Sterne glühen farbig mit Leuchtspur und fliegen schneller. Die Figur glitcht alle 3,5–8 s für 0,22 s
+  (`GLITCH_*` in `asteroid-view.js`, Option `glitch`): springt ruckartig seitlich, zwei additive Farbgeister
+  (teilen `instanceMatrix` der Figur) flackern versetzt auf. Bei reduzierter Bewegung kein Glitch.
 - Logo „corepop“: `components/Logo.astro` + `.logo` in global.css (zwei Candy-Farben, Glanz, Extrusion per drop-shadow).
 - Alle Buttons im einfarbigen Candy-Look: Klasse `candy`, Farbe über `--c` (Standard Akzentblau), z. B.
   `class="candy [--c:var(--color-accent-2)]"` oder `style="--c:#ff4d5e"`. Nicht antippbar: `aria-disabled="true"`,
   `disabled` oder `.is-waiting`. Reine Icon-Buttons (Zurück, Sprache) bleiben flach.
+
+## Ton (seit 2026-11-24)
+- **Tone.js** (MIT; Strudel verworfen wegen AGPL). Keine Sound-Dateien – alles live synthetisiert. Eigener Chunk,
+  gleich nach dem Laden geholt und aufgebaut: spielt sofort, wenn der Browser Autoplay erlaubt, sonst ab der ersten
+  Berührung/Taste (echtes Autoplay ohne Geste blockieren alle Browser).
+- **Seitenwechsel ohne Neuladen** (Astro `<ClientRouter />` in `Base.astro`), damit die Musik durchläuft: Sternenflug
+  `transition:persist`, Komponenten-Skripte starten bei `astro:page-load` und räumen bei `astro:before-swap` auf
+  (`startSolo` und `startLogoGem` geben eine Aufräum-Funktion zurück – WebGL-Kontexte nicht stapeln).
+- **Musik** (Blech-Synth, Pulswelle, Slap-Bass, Streicher, Echo), eigene Melodien: `menu` (Startseite, getragen wie ein Abspann, 84 bpm), `game` (treibend, 124 bpm), `boss`
+  (Endkampf in d-Moll, 108 bpm, vier Teile: Galopp-Bass + Pauken + tiefe Blech-Schläge → Blech-Thema → Es-Dur-Akkord
+  als Schauder → Höhepunkt mit vollem Schlagzeug, Thema hoch und tief, Becken). Notenschrift in `music.js` („D5:4 r:2 | …“, Längen in
+  16teln, jeder Takt = 16 – Test `tests/music.test.js`). Stückwechsel blenden.
+- **Effekte** (`sfx.js`): Laser (Pulswellen-„Pju“, gedrosselt), Treffer-Plopp mit Tonhöhe je Blockfarbe (pentatonisch),
+  Explosion (Rauschen + Bass, Supernova größer), Start (Wusch; Spreng-Flieger mit Warn-Piepsen), Abflug, Absturz vom
+  Band (Rutschpfeife), blockiert („oh-oh“, Ereignis `blocked`), „geht nicht“, Entschärfen, Specials, Sterne im
+  Sieg-Dialog (`dialog.show({ onStar })`), Sieg-Fanfare, verloren.
+- Optionen: Schalter Musik / Effekte (`store/sound.js`, `corepop:sound`, Klartext).
 
 ## Freispielen (seit 2026-11-24)
 - **Sterne pro Level** (`game.stars()`, `game.stats`): ★ geschafft · ★★ höchstens `STAR_TWO` (4) Fehlstarts ·
@@ -181,7 +205,9 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   freigeschaltet nach Level (`SPECIALS` in `store/progress.js`): **Plattform +1** ab L3 (schwebende Zusatz-Plattform
   rechts oberhalb des Decks – eine Plattform mehr), **Farbwechsel** ab L5 (Knopf, dann
   Flieger auf dem Band antippen: bis zu 60 äußerste Blöcke anderer Farben bekommen seine Farbe, er die Schüsse dazu), **Supernova**
-  ab L7 (Riesen-Explosion am vordersten Punkt, `blastPower` × 1,9).
+  ab L7 (Riesen-Explosion am vordersten Punkt, `blastPower` × 1,9), **Zurückziehen** ab L8 (Knopf, dann Flieger auf
+  dem Deck antippen – `hangar-view.pick`: er fliegt zur Luke und kommt mit Restmunition als Nächstes wieder aufs Band,
+  `queue.unshift`; Schüsse in der Luft fliegen weiter, `shooter` in `core/game.js`).
 - **Flieger-Designs** (`render/ship-model.js`, Option `design`): classic, paper (6 ★), gummy (14 ★), rocket (24 ★),
   ufo (34 ★) – `DESIGNS` in `store/progress.js`, Auswahl im Optionen-Dialog (gilt ab dem nächsten Level).
 - Spielstand: `corepop:v1` = { unlocked, stars, design }, verwürfelt + signiert (`store/secure.js`).
@@ -250,7 +276,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - Booster (z. B. „Slot +1“, Drehung pausieren, Bombe)
 - Level-Editor bzw. Formen aus Modellen (Planeten, Raumstationen, Figuren) statt nur Kugeln
 - Echte Lösbarkeitsprüfung (Solver) für generierte Level
-- Sound, Juice (Screenshake, Trefferblitz), Mobile-Optimierung bzw. PWA
+- Juice (Screenshake, Trefferblitz), Mobile-Optimierung bzw. PWA
 
 ## Alternative Themen für dasselbe Prinzip (Brainstorm)
 Ameisenbären saugen farbige Ameisen ein (Magengröße als Limit, Schluckauf bei falscher Farbe) ·

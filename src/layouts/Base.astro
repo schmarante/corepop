@@ -1,7 +1,10 @@
 ---
 // Grundgerüst jeder Seite: <head> (Meta, Sprach-Weiterleitung vor dem ersten Paint) und <body>.
 // Kopfzeilen bringen die Seiten selbst mit – das Spiel braucht den ganzen Bildschirm.
+// Seitenwechsel ohne Neuladen (Astro ClientRouter): Ton (audio/sound.js) und Sternenflug (transition:persist) laufen
+// durch. Skripte starten deshalb bei `astro:page-load` (auch beim ersten Laden) und räumen bei `astro:before-swap` auf.
 import '../styles/global.css';
+import { ClientRouter } from 'astro:transitions';
 import { useTranslations, localePath, LANGUAGES, DEFAULT_LOCALE, LANG_STORAGE_KEY } from '../i18n/index.js';
 import Starfield from '../components/Starfield.astro';
 import OptionsDialog from '../components/OptionsDialog.astro';
@@ -56,6 +59,7 @@ const ogImage = absolute(`${base}/og-image.jpg`);
     <meta name="twitter:image" content={ogImage} />
     <meta name="twitter:image:alt" content={t('meta.imageAlt')} />
     <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+    <ClientRouter fallback="swap" />
     {LANGUAGES.map(({ code }) => <link rel="alternate" hreflang={code} href={localePath(code, page)} />)}
     {/* Sprache: ?lang=… > gespeicherte Wahl (Sprachmenü) > Browsersprachen > Deutsch. Die Sprache steckt in der URL
          (/en/…): ?lang= wirkt auf jeder Seite, der Rest nur auf deutschen (präfixlosen) Seiten – ein geteilter
@@ -89,14 +93,16 @@ const ogImage = absolute(`${base}/og-image.jpg`);
     <script>
       import { LANG_STORAGE_KEY } from '../i18n/index.js';
       // eine in den Optionen gewählte Sprache gewinnt ab jetzt gegen die Browsersprache (Skript im <head>)
-      document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach(link =>
-        link.addEventListener('click', () => {
-          try {
-            localStorage.setItem(LANG_STORAGE_KEY, link.dataset.lang!);
-          } catch {
-            /* nicht gespeichert */
-          }
-        }),
+      document.addEventListener('astro:page-load', () =>
+        document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach(link =>
+          link.addEventListener('click', () => {
+            try {
+              localStorage.setItem(LANG_STORAGE_KEY, link.dataset.lang!);
+            } catch {
+              /* nicht gespeichert */
+            }
+          }),
+        ),
       );
     </script>
   </body>

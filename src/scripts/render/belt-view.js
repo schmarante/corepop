@@ -146,6 +146,11 @@ export function createBeltView(scene, slotCount, { moreText, design = 'classic' 
     vanish() {
       vanish ??= 0;
     },
+    /** Weltposition der Luke (dorthin fliegen zurückgezogene Flieger) */
+    hatchPosition(out = new THREE.Vector3()) {
+      root.updateMatrixWorld(true);
+      return mouth.getWorldPosition(out);
+    },
     setY(value) {
       y = value;
       deck.position.set(SHIFT, beltY() - 0.75, SLOT_Z + 0.35);
