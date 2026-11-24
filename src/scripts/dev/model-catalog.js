@@ -7,7 +7,7 @@ import { createFleet } from '../core/fleet.js';
 import { createRng } from '../core/rng.js';
 
 /** Einstellung für Modelle, die in keinem Level stecken – damit man sie trotzdem sieht */
-const PREVIEW_DEFAULTS = { radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], columns: 4, ships: { 20: 2, 50: 1 }, crystals: 2 };
+const PREVIEW_DEFAULTS = { radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], slots: 4, ships: { 50: 2, 100: 1 }, crystals: 2 };
 
 /** @returns {{ id: string, levelIndex: number | null, level: object }[]} je Modell ein Eintrag */
 export function modelCatalog() {

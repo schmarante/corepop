@@ -10,22 +10,33 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { startFrameLoop, GAME_FPS } from './frame-loop.js';
 
 const FOV = 50;
-const MIN_HALF_WIDTH = 7.5;   // so viel Welt muss links und rechts der Mitte sichtbar sein (Hangar-Reihe)
-const BASE_DISTANCE = 20;
+const MIN_HALF_WIDTH = 6.2;   // so viel Welt muss links und rechts der Mitte sichtbar sein (Hangar-Reihe mit 5 Plattformen)
+// Senkrechter Stapel im freien Bereich (Welteinheiten): Körper oben, darunter Deck, darunter die Warteschlange
+// (render/queue-view.js). Was an Höhe übrig ist, verteilt sich auf die Lücken (SLACK).
+const STACK = {
+  top: 0.4,          // Rand oben
+  body: 5.2,         // halbe Höhe, die der Körper braucht (inkl. Taumeln)
+  bodyToHangar: 6.3, // Körpermitte → Schiff auf der Plattform
+  hangarToEnd: 10.4, // Schiff auf der Plattform → Unterkante der Warteschlange („+n“)
+};
+const STACK_HEIGHT = STACK.top + STACK.body + STACK.bodyToHangar + STACK.hangarToEnd;
+const SLACK = { top: 0.3, gap: 0.3 };   // Anteile der übrigen Höhe; der Rest bleibt unten frei
+const SHADOW_MAP = 1024;       // Auflösung des Sonnenschattens (Figur füllt ihn ungefähr aus)
+const SUN_DIRECTION = new THREE.Vector3(6, 10, 12).normalize();
 const SHAKE_DECAY = 3.5;      // 1/s – wie schnell das Wackeln abklingt
 const SHAKE_AMOUNT = 0.35;    // Welteinheiten bei voller Stärke
 
 /**
  * @param {HTMLCanvasElement} canvas  liegt in einem Container, der die Größe vorgibt
  * @param {{ onLayout?: (anchors: { asteroidY: number, hangarY: number, halfHeight: number }) => void,
- *           minHalfWidth?: number, minDistance?: number, insets?: () => { top: number, bottom: number } }} [options]
+ *           minHalfWidth?: number, minHalfHeight?: number, insets?: () => { top: number, bottom: number } }} [options]
  *   insets: px oben/unten, die von Oberfläche verdeckt sind (Kopfzeile, Schiffsauswahl). Die Bühne zeichnet trotzdem
  *   über den ganzen Bildschirm (nichts wird an einer Kante abgeschnitten), platziert Körper und Hangar aber im freien
  *   Bereich dazwischen.
- *   minHalfWidth/minDistance: wie viel Welt sichtbar sein muss – Standard fürs Spiel (Hangar-Reihe), kleiner für
- *   Vorschauen, in denen nur der Körper zu sehen ist (Dev-Übersicht)
+ *   minHalfWidth/minHalfHeight: wie viel Welt sichtbar sein muss – Standard fürs Spiel (Hangar-Reihe, Stapel aus Körper,
+ *   Deck und Warteschlange), kleiner für Vorschauen, in denen nur der Körper zu sehen ist (Dev-Übersicht)
  */
-export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, minDistance = BASE_DISTANCE, insets } = {}) {
+export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, minHalfHeight = STACK_HEIGHT / 2, insets } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.NeutralToneMapping;   // satte Farben ohne ausgebrannte Glanzlichter
@@ -40,6 +51,14 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
   scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1840, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(6, 10, 12);
+  // Sonnenschatten nur auf der Figur (asteroid-view.js: cast/receive): weiches Schattenbild, das der Figur folgt
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  scene.add(sun.target);
   // Randlichter dezent und wenig gesättigt – sonst färben sie helle Würfel in Spielfarben (blau/pink) um
   const rimBlue = new THREE.DirectionalLight(0xa9d8ff, 1.2);
   rimBlue.position.set(-10, 4, -8);
@@ -57,11 +76,11 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     const tan = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
-    // Abstand so, dass der freie Bereich (ohne Kopfzeile/Schiffsauswahl) dieselbe Welt zeigt wie früher als eigene
-    // Bühne: genug Höhe (minDistance) und genug Breite (minHalfWidth) – die verdeckten Ränder kommen nur dazu
+    // Abstand so, dass der freie Bereich (ohne Kopfzeile) genug Höhe (minHalfHeight) und genug Breite (minHalfWidth)
+    // zeigt – die verdeckten Ränder kommen nur dazu
     const { top = 0, bottom = 0 } = insets?.() ?? {};
     const share = Math.max(0.3, (h - top - bottom) / h);   // Anteil des freien Bereichs an der Bildhöhe
-    const distance = Math.max(minDistance / share, minHalfWidth / (tan * camera.aspect));
+    const distance = Math.max(minHalfHeight / (tan * share), minHalfWidth / (tan * camera.aspect));
     home.set(0, 0, distance);
     camera.position.copy(home);
     camera.lookAt(0, 0, 0);
@@ -71,11 +90,11 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     const perPx = (2 * halfHeight) / h;
     const playTop = halfHeight - top * perPx;
     const playBottom = -halfHeight + bottom * perPx;
-    const center = (playTop + playBottom) / 2;
     const half = (playTop - playBottom) / 2;
+    const slack = Math.max(0, 2 * half - STACK_HEIGHT);
     anchors.halfHeight = half;
-    anchors.asteroidY = center + half * 0.2;
-    anchors.hangarY = center - half * 0.62;
+    anchors.asteroidY = playTop - STACK.top - STACK.body - slack * SLACK.top;
+    anchors.hangarY = anchors.asteroidY - STACK.bodyToHangar - slack * SLACK.gap;
     onLayout?.(anchors);
   }
   const observer = new ResizeObserver(resize);
@@ -90,9 +109,25 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     scene,
     camera,
     anchors,
+    /** Sonnenschatten auf die Figur ausrichten: Mitte (Welt) und Radius (Welteinheiten) – beim Laden und Neuausrichten */
+    aimShadow(center, radius) {
+      sun.target.position.copy(center);
+      sun.position.copy(center).addScaledVector(SUN_DIRECTION, radius * 4);
+      const cam = sun.shadow.camera;
+      cam.left = cam.bottom = -radius * 1.3;   // etwas Luft fürs Schweben/Taumeln
+      cam.right = cam.top = radius * 1.3;
+      cam.near = radius * 1.5;
+      cam.far = radius * 6.5;
+      cam.updateProjectionMatrix();
+    },
     /** Bildschirm wackeln lassen (0 … 1, addiert sich, klingt von selbst ab) */
     shake(strength) {
       shake = Math.min(1, shake + strength);
+    },
+    /** Shader aller Objekte jetzt übersetzen (beim Laden eines Levels, mit den Platzhaltern aus effects-view warmUp) –
+     *  sonst hakt die erste Explosion, während die GPU Shader übersetzt */
+    warmUp() {
+      renderer.compile(scene, camera);
     },
     /** startet die Render-Schleife (GAME_FPS, frame-loop.js); update(dt) läuft vor jedem Bild */
     run(update) {

@@ -2,7 +2,7 @@
 // Startseite: Titel, Kurzerklärung, „Spielen“ (weiter beim höchsten freigeschalteten Level) und Level-Auswahl.
 import { useTranslations, localePath } from '../i18n/index.js';
 import { LEVELS } from '../scripts/core/levels.js';
-import { LOCK_ICON } from '../scripts/ui/icons.js';
+import { LOCK_ICON, STAR_ICON } from '../scripts/ui/icons.js';
 import OptionsButton from './OptionsButton.astro';
 import Logo from './Logo.astro';
 
@@ -34,13 +34,17 @@ const play = localePath(locale, 'play');
     {/* Level-Auswahl erst, wenn es mehrere Level gibt */}
     <section class:list={['flex flex-col gap-3', LEVELS.length < 2 && 'hidden']}>
       <h2 class="text-sm font-bold uppercase tracking-wide text-muted">{t('home.levels')}</h2>
-      <ol data-levels class="reveal grid grid-cols-3 gap-3">
+      <ol data-levels class="reveal grid grid-cols-6 gap-2">
         {LEVELS.map((_, i) => (
           <li>
             <a href={`${play}?level=${i + 1}`} data-level={i}
-               class="candy flex aspect-square items-center justify-center rounded-2xl text-3xl font-black [--c:var(--color-accent-2)] aria-disabled:pointer-events-none aria-disabled:opacity-50">
+               class="candy relative flex aspect-square flex-col items-center justify-center rounded-xl text-lg font-black [--c:var(--color-accent-2)] aria-disabled:pointer-events-none aria-disabled:opacity-50">
               <span data-number>{i + 1}</span>
               <span data-lock hidden aria-label={t('home.locked')}><Fragment set:html={LOCK_ICON} /></span>
+              {/* beste Sterne dieses Levels (im Browser gesetzt) */}
+              <span data-stars hidden class="flex h-2.5 gap-px">
+                {[0, 1, 2].map(() => <span class="star h-2.5 w-2.5 text-black/25"><Fragment set:html={STAR_ICON} /></span>)}
+              </span>
             </a>
           </li>
         ))}
@@ -51,7 +55,7 @@ const play = localePath(locale, 'play');
 
 <script>
   // Freigeschaltete Level stehen nur auf diesem Gerät (localStorage) – deshalb hier im Browser markieren
-  import { unlockedLevel } from '../scripts/store/progress.js';
+  import { unlockedLevel, levelStars } from '../scripts/store/progress.js';
 
   const unlocked = unlockedLevel();
   document.querySelectorAll<HTMLAnchorElement>('[data-level]').forEach(link => {
@@ -62,6 +66,10 @@ const play = localePath(locale, 'play');
     }
     link.querySelector<HTMLElement>('[data-number]')!.hidden = locked;
     link.querySelector<HTMLElement>('[data-lock]')!.hidden = !locked;
+    const stars = levelStars(Number(link.dataset.level));
+    const row = link.querySelector<HTMLElement>('[data-stars]')!;
+    row.hidden = stars === 0;
+    row.querySelectorAll('.star').forEach((star, k) => star.classList.toggle('is-on', k < stars));
   });
   const play = document.querySelector<HTMLAnchorElement>('[data-continue]')!;
   play.search = `?level=${unlocked + 1}`;

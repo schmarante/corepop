@@ -8,7 +8,7 @@
   },
   "home": {
     "claim": "Knack den Kern – Farbe für Farbe.",
-    "intro": "Tippe Raumschiffe an, damit sie in den Hangar fliegen. Jedes Schiff schießt nur auf Blöcke seiner Farbe. Plane gut: Der Hangar hat nur wenige Plätze.",
+    "intro": "Tippe Raumschiffe an – sie schießen nur Blöcke ihrer Farbe, die ganz außen liegen. Wische die Reihe zur Seite, aber Vorsicht: Was hinausfällt, ist weg.",
     "play": "Spielen",
     "continue": "Weiter mit Level {n}",
     "levels": "Level",
@@ -17,27 +17,21 @@
   "game": {
     "level": "Level {n}",
     "progress": "Fortschritt",
-    "hint": "Tippe ein Schiff an. Es schießt nur auf Blöcke seiner Farbe. Wischen dreht die Figur.",
-    "queue": "Warteschlange der Schiffe",
-    "ship": "Schiff in {color}, {count} Schuss",
-    "waiting": "Wartet: {color}, {count} Schuss",
+    "stage": "Spielfeld: Figur, Hangar und Warteschlange. Tasten 1 bis 5 starten ein Schiff, Pfeiltasten schieben die vordere Reihe.",
+    "hint": "Tippe ein Schiff an – es fliegt auf die Plattform darüber. Wische die vordere Reihe zur Seite: Was hinausfällt, ist weg. Rote Zahl: ohne ihn reicht seine Farbe nicht mehr. Wischen oben dreht die Figur.",
     "more": "+{count}",
-    "hangarFull": "Der Hangar ist voll.",
     "won": "Gepoppt!",
     "allDone": "Alle Level geschafft! 🚀",
     "lost": "Hangar blockiert!",
-    "lostText": "Kein Schiff im Hangar findet noch ein Ziel seiner Farbe.",
+    "lostText": "Alle Plattformen sind belegt, und kein Schiff findet einen Block seiner Farbe, der ganz außen liegt. Starte Schiffe erst, wenn genug von ihrer Farbe außen liegt – schiebe die anderen solange zur Seite.",
+    "lostAmmo": "Zu viel aussortiert!",
+    "lostAmmoText": "Für {color} reicht die Munition nicht mehr. Schiffe mit roter Zahl werden noch gebraucht – schiebe sie nicht hinaus.",
     "next": "Nächstes Level",
     "again": "Nochmal",
     "fromStart": "Von vorn",
     "noWebgl": "Dein Browser kann leider keine 3D-Grafik anzeigen.",
-    "breakOff": "Volltreffer! Bruchstück abgesprengt",
-    "skipped": {
-      "one": "+{count} Schiff übersprungen",
-      "other": "+{count} Schiffe übersprungen"
-    },
-    "bomber": "Spreng-Flieger, 1 Bombe",
-    "bomberWaiting": "Wartet: Spreng-Flieger"
+    "breakOff": "Volltreffer! Sprengsatz gezündet",
+    "bomberGone": "Bomber aussortiert – ein Kristall ist erloschen"
   },
   "colors": {
     "w": "Silber",
@@ -75,5 +69,36 @@
       "tailwindcss": "Gestaltung (CSS)",
       "vitest": "Automatische Tests der Spiellogik"
     }
+  },
+  "special": {
+    "pad": {
+      "name": "Plattform +1",
+      "hint": "Eine Zusatz-Plattform schwebt über dem Deck – jedes vordere Schiff darf hin, wenn seine eigene belegt ist."
+    },
+    "recolor": {
+      "name": "Farbwechsel",
+      "hint": "Tippe einen Flieger an: Die äußersten Blöcke färben sich in seine Farbe."
+    },
+    "nova": {
+      "name": "Supernova",
+      "hint": "Eine riesige Explosion reißt die Figur auf."
+    },
+    "pick": "Tippe einen Flieger an – die Hülle färbt sich in seine Farbe",
+    "unlocked": "{name} freigeschaltet!"
+  },
+  "stars": {
+    "label": "{count} von 3 Sternen",
+    "two": "Höchstens die Hälfte der Reserve aussortiert",
+    "three": "Fast nichts aussortiert, kein Bomber verschenkt"
+  },
+  "design": {
+    "title": "Flieger",
+    "locked": "ab {count} ★",
+    "unlocked": "Neuer Flieger freigeschaltet: {name}",
+    "classic": "Klassik",
+    "paper": "Papierflieger",
+    "gummy": "Gummiflieger",
+    "rocket": "Retro-Rakete",
+    "ufo": "Mini-UFO"
   }
 }

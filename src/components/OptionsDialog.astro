@@ -3,7 +3,8 @@
 // geöffnet über das Zahnrad (OptionsButton.astro). Während er offen ist, pausiert das Spiel (modes/solo.js).
 import { useTranslations, localePath, LANGUAGES } from '../i18n/index.js';
 import { RUNTIME, ASSETS, BUILD } from '../data/credits.js';
-import { CLOSE_ICON } from '../scripts/ui/icons.js';
+import { CLOSE_ICON, LOCK_ICON } from '../scripts/ui/icons.js';
+import { DESIGNS } from '../scripts/store/progress.js';
 
 interface Props {
   locale: string;
@@ -43,6 +44,24 @@ const groups = [
       </ul>
     </section>
 
+    {/* Flieger-Designs: freigespielt über Sterne (store/progress.js → DESIGNS); Stand nur im Browser (Skript unten) */}
+    <section class="flex flex-col gap-3">
+      <h3 class="text-sm font-bold uppercase tracking-wide text-muted">{t('design.title')}</h3>
+      <ul class="grid grid-cols-2 gap-3">
+        {DESIGNS.map(({ id, stars }) => (
+          <li>
+            <button type="button" data-design={id} data-stars-needed={stars}
+                    class="candy flex w-full flex-col items-center justify-center gap-0.5 rounded-2xl px-3 py-2.5 font-extrabold [--c:#4b5199]">
+              <span>{t(`design.${id}`)}</span>
+              <span data-design-lock hidden class="flex items-center gap-1 text-xs font-bold opacity-80">
+                <Fragment set:html={LOCK_ICON} />{t('design.locked', { count: stars })}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+
     <section class="flex flex-col gap-3 leading-relaxed">
       <h3 class="text-sm font-bold uppercase tracking-wide text-muted">{t('about.title')}</h3>
       <p>{t('about.intro')}</p>
@@ -69,8 +88,34 @@ const groups = [
 </dialog>
 
 <script>
+  import { designUnlocked, shipDesign, setShipDesign } from '../scripts/store/progress.js';
+
   const dialog = document.querySelector<HTMLDialogElement>('[data-options]')!;
-  document.querySelectorAll('[data-options-open]').forEach(button => button.addEventListener('click', () => dialog.showModal()));
+  // Flieger-Designs: gesperrte mit Schloss + nötigen Sternen, das gewählte hervorgehoben (gilt ab dem nächsten Level)
+  const designButtons = [...dialog.querySelectorAll<HTMLButtonElement>('[data-design]')];
+  function showDesigns() {
+    const chosen = shipDesign();
+    for (const button of designButtons) {
+      const id = button.dataset.design!;
+      const open = designUnlocked(id);
+      button.querySelector<HTMLElement>('[data-design-lock]')!.hidden = open;
+      button.setAttribute('aria-disabled', String(!open));
+      button.setAttribute('aria-pressed', String(id === chosen));
+      button.style.setProperty('--c', id === chosen ? 'var(--color-accent)' : '#4b5199');
+    }
+  }
+  for (const button of designButtons)
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') === 'true') return;
+      setShipDesign(button.dataset.design!);
+      showDesigns();
+    });
+  document.querySelectorAll('[data-options-open]').forEach(button =>
+    button.addEventListener('click', () => {
+      showDesigns();
+      dialog.showModal();
+    }),
+  );
   dialog.querySelector('[data-options-close]')!.addEventListener('click', () => dialog.close());
   // Klick auf den abgedunkelten Rand schließt (das Ziel ist dann der <dialog> selbst, nicht sein Inhalt)
   dialog.addEventListener('click', e => e.target === dialog && dialog.close());

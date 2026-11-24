@@ -2,7 +2,9 @@
 // und Heck biegen sich stark nach oben –, darauf hinten eine dicke, kopflastige Kapitänskajüte (breiter als der Rumpf,
 // hinten überstehend, gewölbtes Dach, runde Bullaugen mit Goldrand, Fensterreihe am Heck). Vorn ein schräger
 // Bugspriet, am Rumpf ein goldener Zierstreifen und Kanonenluken. Ein Mast mit großem, gebauschtem schwarzen Segel mit
-// weißem Totenkopf und gekreuzten Knochen, Rahen und Ausguck. Deutlich größer als die anderen Figuren.
+// weißem Totenkopf und gekreuzten Knochen, Rahen und Ausguck. Deutlich größer als die anderen Figuren (doppelt so viele
+// Würfel, ~10 000) – genug Auflösung für Details: Kanonenrohre ragen aus dunklen Luken, goldene Reling mit Pfosten,
+// Steuerrad vor der Kajüte, Kajütentür, Hecklaterne, wehender Wimpel an der Mastspitze, silberne Anker am Bug.
 // Der bunte Kern steckt in Rumpf und Kajüte (Mast und Segel sind nur Haut).
 import { inCylinderY } from './shapes.js';
 
@@ -49,6 +51,38 @@ export function pirateShipModel({ radius: R }) {
     return Math.hypot(Y - yLine, z) <= 0.75;
   };
 
+  // Kanonen: Rohre ragen seitlich aus eckigen Luken (Mitte je Luke, Y relativ zum Deck)
+  const cannons = [-0.3, -0.13, 0.04, 0.21, 0.38].map(f => {
+    const x = Math.round(R * f);
+    return { x, y: Math.round(deckAt(x) - H * 0.45) };
+  });
+  const inCannon = (x, Y, z) =>
+    cannons.some(c => Math.hypot(x - c.x, Y - c.y) <= 0.95 && Math.abs(z) >= beamAt(c.x, c.y) - 1 && Math.abs(z) <= beamAt(c.x, c.y) + 2.4);
+  /** Reling: Pfosten alle 3 Voxel und ein Handlauf darüber, am Deckrand zwischen Kajüte und Bug */
+  const inRail = (x, Y, z) => {
+    if (x < cabin.front || x > bow - 3) return false;
+    const deck = deckAt(x);
+    if (Y <= deck || Y > deck + 2.5) return false;
+    const edge = beamAt(x, deck) - 0.4;
+    if (Math.abs(Math.abs(z) - edge) > 0.6) return false;
+    return Y > deck + 1.6 || ((Math.round(x) % 3) + 3) % 3 === 0;
+  };
+  /** Steuerrad vor der Kajüte: Ring mit Speichen, senkrecht, quer zum Schiff (Achse x) */
+  const wheel = { x: Math.round(cabin.front + 2.5), y: deckAt(cabin.front) + 4.2, r: 2.4 };
+  const inWheel = (x, Y, z) => {
+    if (Math.abs(x - wheel.x) > 0.5) return false;
+    const d = Math.hypot(Y - wheel.y, z);
+    if (Math.abs(d - wheel.r) < 0.55 || d < 0.8) return true;                                // Ring, Nabe
+    if (d < wheel.r && (Math.abs(z) < 0.45 || Math.abs(Y - wheel.y) < 0.45)) return true;   // Speichen
+    if (Math.abs(z) < 0.5 && Y < wheel.y && Y > deckAt(x)) return true;                      // Ständer
+    return false;
+  };
+  /** Hecklaterne auf dem Kajütendach: Pfosten mit Laternenkasten */
+  const lantern = { x: Math.round(cabin.back + 2), y: cabin.roof + 1 };
+  const inLantern = (x, Y, z) =>
+    (Math.abs(x - lantern.x) < 0.5 && Math.abs(z) < 0.5 && Y >= lantern.y - 1 && Y < lantern.y + 2) ||
+    (Math.abs(x - lantern.x) <= 1 && Math.abs(z) <= 1 && Y >= lantern.y + 2 && Y <= lantern.y + 4);
+
   const mast = { x: Math.round(R * 0.12), top: R * 1.18 };
   const sail = { y0: R * 0.16, y1: R * 1.02, half: R * 0.48, bulge: 2.2 };
   const nestY = mast.top - R * 0.12;
@@ -56,6 +90,16 @@ export function pirateShipModel({ radius: R }) {
     inCylinderY(x, Y, z, [mast.x, 0], 0.7, 0, mast.top) ||
     (Y >= nestY && Y <= nestY + 1.6 && Math.hypot(x - mast.x, z) <= 2.2) ||                       // Ausguck
     [sail.y0 - 0.6, sail.y1 + 0.6].some(y => Math.abs(Y - y) < 0.6 && Math.abs(x - mast.x) <= sail.half + 1.5 && Math.abs(z) < 0.6);   // Rahen
+
+  /** Wimpel an der Mastspitze: weht nach hinten (−x), wellig, spitz zulaufend */
+  const pennant = { x0: mast.x - 0.5, length: R * 0.36, y: mast.top - 1.5, height: 2.6 };
+  const inPennant = (x, Y, z) => {
+    const t = (pennant.x0 - x) / pennant.length;   // 0 am Mast … 1 an der Spitze
+    if (t < 0 || t > 1) return false;
+    const half = (pennant.height / 2) * (1 - t * 0.75);
+    const wave = Math.sin(t * Math.PI * 2.2) * 1.1 * t;
+    return Math.abs(Y - pennant.y + t * 1.2) <= half && Math.abs(z - wave) <= 0.55;
+  };
 
   /** Lage im Segel: u = −1 … 1 (quer), v = 0 … 1 (unten → oben) */
   const sailUV = (x, Y) => [(x - mast.x) / sail.half, (Y - sail.y0) / (sail.y1 - sail.y0)];
@@ -91,11 +135,19 @@ export function pirateShipModel({ radius: R }) {
     bounds: Math.ceil(R) + 2,
     solid: (x, y, z) => {
       const Y = y + shift;
-      return inHull(x, Y, z) || inCabin(x, Y, z) || inBowsprit(x, Y, z) || inMast(x, Y, z) || inSail(x, Y, z);
+      return (
+        inHull(x, Y, z) || inCabin(x, Y, z) || inBowsprit(x, Y, z) || inMast(x, Y, z) || inSail(x, Y, z) ||
+        inCannon(x, Y, z) || inRail(x, Y, z) || inWheel(x, Y, z) || inLantern(x, Y, z) || inPennant(x, Y, z)
+      );
     },
     skin(x, y, z) {
       const Y = y + shift;
       if (inSail(x, Y, z) && !inMast(x, Y, z)) return skull(...sailUV(x, Y)) ? 'w' : 'n';
+      if (inPennant(x, Y, z) && !inMast(x, Y, z)) return 'n';
+      if (inCannon(x, Y, z) && !inHull(x, Y, z)) return 'n';
+      if (inRail(x, Y, z)) return 'y';
+      if (inWheel(x, Y, z)) return Math.hypot(Y - wheel.y, z) < 0.8 ? 'y' : 'u';
+      if (inLantern(x, Y, z)) return Y >= lantern.y + 2 ? 'y' : 'n';
       if (inCabin(x, Y, z) && !inHull(x, Y, z)) {
         // Kajüte: Bullaugen (Goldring, dunkel innen) an den Seiten, Fensterreihe hinten, goldene Dachkante
         for (const p of portholes) {
@@ -103,6 +155,11 @@ export function pirateShipModel({ radius: R }) {
           if (Math.abs(z) > cabin.half * 0.7 && d < 1.9) return d < 1 ? 'n' : 'y';
         }
         if (x < cabin.back + 0.8 && Y > cabin.roof * 0.35 && Y < cabin.roof * 0.7 && Math.round(z) % 3 === 0) return 'y';
+        // Tür vorn: dunkles Rechteck mit goldenem Rahmen und Knauf
+        if (x > cabin.front - 0.8 && Math.abs(z) <= 2.6 && Y < cabin.roof * 0.62) {
+          if (Math.abs(z) <= 1.6 && Y < cabin.roof * 0.55) return Math.abs(z - 1) < 0.5 && Math.abs(Y - cabin.roof * 0.3) < 0.5 ? 'y' : 'n';
+          return 'y';
+        }
         if (Y > cabin.roof - 2.2 * (z / cabin.half) ** 2 - 1.4 && (Math.abs(z) > cabin.half * 0.7 || x < cabin.back + 1 || x > cabin.front - 3)) return 'y';
         return 'u';
       }
@@ -111,8 +168,18 @@ export function pirateShipModel({ radius: R }) {
       // Reling: nur der Rand des Decks golden, die Deckfläche bleibt Holz
       if (Y > deck - 1 && (Math.abs(z) >= beamAt(x, Y) - 0.8 || x > bow - 2)) return 'y';
       if (Math.abs(Y - (deck - 3)) < 0.5) return 'y';                         // Zierstreifen
-      // Kanonenluken: Reihe dunkler Quadrate an der Bordwand
-      if (Y < deck - 4.5 && Y > deck - 7.5 && x > cabin.front && x < R * 0.55 && ((x % 3) + 3) % 3 === 0) return 'n';
+      // Kanonenluken: dunkles Quadrat um jedes Rohr
+      for (const c of cannons) if (Math.max(Math.abs(x - c.x), Math.abs(Y - c.y)) <= 1.6) return 'n';
+      // Anker am Bug (silber): Schaft, Querstock oben, Bogen mit Spitzen unten
+      const ax = bow - R * 0.2;
+      const ay = deck - H * 0.42;
+      const dx = x - ax;
+      const dy = Y - ay;
+      const shank = Math.abs(dx) < 0.6 && dy > -3.2 && dy < 2.6;
+      const stock = Math.abs(dy - 2) < 0.6 && Math.abs(dx) < 1.8;
+      const ring = Math.abs(Math.hypot(dx, dy - 3.4) - 0.9) < 0.5;
+      const arc = dy < -0.8 && Math.abs(Math.hypot(dx, dy + 0.4) - 3) < 0.6;
+      if (shank || stock || ring || arc) return 'w';
       return 'u';
     },
   };

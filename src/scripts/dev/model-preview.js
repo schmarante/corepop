@@ -6,7 +6,7 @@ import { attachDragRotate } from '../ui/drag-rotate.js';
 import { buildBody } from './model-catalog.js';
 
 export function startModelPreview(canvas, level) {
-  const stage = createStage(canvas, { minHalfWidth: 6, minDistance: 8 });
+  const stage = createStage(canvas, { minHalfWidth: 6, minHalfHeight: 4 });
   let view = null;
   let spinning = true;
 

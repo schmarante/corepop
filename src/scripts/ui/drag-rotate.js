@@ -1,11 +1,13 @@
-// Wischen/Ziehen dreht den Asteroiden um die Y-Achse.
+// Wischen/Ziehen dreht den Asteroiden um die Y-Achse. `accept(e)`: nur Gesten, die dort beginnen, wo gedreht werden
+// darf (nicht auf der Warteschlange – die schiebt man seitlich, ui/queue-input.js).
 const RADIANS_PER_PX = 0.01;
 
 /** @returns {() => void} entfernt die Listener */
-export function attachDragRotate(el, onRotate) {
+export function attachDragRotate(el, onRotate, { accept = () => true } = {}) {
   let lastX = null;
   let pointer = null;
   const down = e => {
+    if (pointer !== null || !accept(e)) return;
     pointer = e.pointerId;
     lastX = e.clientX;
     el.setPointerCapture(e.pointerId);

@@ -13,8 +13,8 @@ use_dns_when_possible: true
 composer_version: "2"
 web_environment: []
 nodejs_version: "24"
-# Astro-Dev-Server (HMR) im web-Container: `ddev npm run dev` → https://corepop.localhost:4321/
-# Der Docroot (dist/, gebaut mit `ddev npm run build`) bleibt unter https://corepop.localhost/
+# Astro-Dev-Server (HMR) im web-Container: `ddev yarn dev` → https://corepop.localhost:4321/
+# Der Docroot (dist/, gebaut mit `ddev yarn build`) bleibt unter https://corepop.localhost/
 web_extra_exposed_ports:
     - name: astro
       container_port: 4321

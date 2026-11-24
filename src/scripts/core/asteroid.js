@@ -28,20 +28,20 @@ export const visibleFromOutside = ({ grid }, v) => NEIGHBORS_26.some(([dx, dy, d
  *     → man erkennt das Objekt, und kein Kern blitzt durch.
  *   - Darunter liegt der bunte Kern: `level.core` = Schichten von außen nach innen, gleichmäßig auf die restliche
  *     Tiefe verteilt; mehrere Farben einer Schicht drehen sich als Spirale um die Y-Achse.
- *   - Dazu `level.crystals` Spreng-Blöcke (Riss-Kristalle) in der ersten Kernschicht, Farbe BLAST – nur der
- *     Spreng-Flieger trifft sie (siehe placeCrystals, fleet.js, game.js).
+ *   - Dazu `level.crystals` Spreng-Blöcke (Riss-Kristalle) in einer inneren Kernschicht, Farbe BLAST – nur der
+ *     Spreng-Flieger trifft sie, das Bruchstück reißt dann tief in den Kern (siehe placeCrystals, fleet.js, game.js).
  * Tiefe = Abstand zur Oberfläche in Flächen-Schritten (Breitensuche von außen), funktioniert für jede Form.
  *
  * Schicht-Nummern (`voxel.layer`): 0 = Haut, 1 … core.length = Kernschichten.
- * @returns {{ voxels: Voxel[], grid: Map<string, Voxel>, total: number, alive: number,
+ * @returns {{ voxels: Voxel[], grid: Map<string, Voxel>, bounds: number, total: number, alive: number,
  *             aliveByColor: Map<string, number>, targets: Map<string, Set<Voxel>>, crystals: Voxel[] }}
  *   `targets`: lebende, freiliegende Voxel je Farbe – mögliche Ziele, laufend gepflegt (removeVoxel); so muss die
  *   Zielsuche nicht jedes Mal alle Voxel durchgehen.
  *   `grid` enthält nur lebende Voxel.
  * @typedef {{ i: number, x: number, y: number, z: number, color: string, layer: number, depth: number,
  *             alive: boolean, reserved: boolean, exposed: boolean, shade: number,
- *             crystal: boolean, chunk: Voxel[] | null }} Voxel
- *   chunk: nur bei Kristallen – die Voxel, die mit ihm abbrechen (ohne ihn selbst)
+ *             crystal: boolean, baseColor?: string }} Voxel
+ *   baseColor: nur bei Kristallen – Farbe der Schicht darunter (wird er entschärft, game.js, ist er ein normaler Block)
  */
 export function createAsteroid(level, rng) {
   const { build } = MODELS[level.model.type];
@@ -54,11 +54,11 @@ export function createAsteroid(level, rng) {
       for (let z = -B; z <= B; z++) {
         if (!model.solid(x, y, z)) continue;
         // shade: kleine Helligkeitsvariation für die Darstellung – aus dem Seed, damit alle Geräte gleich aussehen
-        const v = { i: voxels.length, x, y, z, color: '', layer: 0, depth: 0, alive: true, reserved: false, exposed: false, shade: rng(), crystal: false, chunk: null };
+        const v = { i: voxels.length, x, y, z, color: '', layer: 0, depth: 0, alive: true, reserved: false, exposed: false, shade: rng(), crystal: false };
         voxels.push(v);
         grid.set(voxelKey(x, y, z), v);
       }
-  const asteroid = { voxels, grid, total: voxels.length, alive: voxels.length, aliveByColor: new Map(), targets: new Map(), crystals: [] };
+  const asteroid = { voxels, grid, bounds: B, total: voxels.length, alive: voxels.length, aliveByColor: new Map(), targets: new Map(), crystals: [] };
 
   // Tiefe per Breitensuche von der Oberfläche nach innen
   for (const v of voxels) {
@@ -85,12 +85,26 @@ export function createAsteroid(level, rng) {
   const skin = level.skin ?? 1;
   const { core } = level;
   const coreDepths = Math.max(1, maxDepth - skin + 1);   // so viele Tiefenstufen teilen sich die Kernschichten
+  const inCore = [];
   for (const v of voxels) {
-    if (v.depth < skin || visibleFromOutside(asteroid, v)) {
-      v.color = model.skin(v.x, v.y, v.z);
-      continue;
-    }
-    const k = Math.min(core.length - 1, Math.floor(((v.depth - skin) * core.length) / coreDepths));
+    if (v.depth < skin || visibleFromOutside(asteroid, v)) v.color = model.skin(v.x, v.y, v.z);
+    else inCore.push(v);
+  }
+  // Schichtgrenzen (erste Tiefe je Schicht): gleichmäßig über die Tiefe verteilt. Innen ist aber wenig Volumen – eine
+  // innere Schicht, die weniger als MIN_LAYER Voxel je Farbe hätte, wächst nach außen (sonst Mini-Schiffe, fleet.js)
+  const perDepth = new Array(coreDepths + 1).fill(0);
+  for (const v of inCore) perDepth[v.depth - skin]++;
+  const starts = core.map((_, k) => Math.floor((k * coreDepths) / core.length));
+  const countFrom = k => {
+    let n = 0;
+    for (let d = starts[k]; d < (starts[k + 1] ?? perDepth.length); d++) n += perDepth[d];
+    return n;
+  };
+  for (let k = core.length - 1; k > 0; k--)
+    while (countFrom(k) < MIN_LAYER * core[k].length && starts[k] > starts[k - 1] + 1) starts[k]--;
+  for (const v of inCore) {
+    let k = core.length - 1;
+    while (k > 0 && v.depth - skin < starts[k]) k--;
     v.layer = k + 1;
     const colors = core[k];
     // Spirale: Winkel um die Y-Achse, mit der Höhe verdreht; positiver Rest (unten wird der Winkel negativ)
@@ -107,28 +121,77 @@ export function createAsteroid(level, rng) {
   return asteroid;
 }
 
-/** Radius des Bruchstücks um einen Kristall (in Voxeln) – wächst leicht mit dem Asteroiden */
-export const chunkRadius = level => 1.6 + level.radius * 0.15;
+/** So viele Voxel bekommt jede Farbe einer Kernschicht mindestens (= MIN_AMMO in fleet.js: keine Mini-Schiffe) */
+const MIN_LAYER = 50;
+
+/** Sprengkraft eines Kristalls (Energie am Sprengpunkt) – wächst mit der Figur. Siehe blastReach. */
+export const blastPower = level => 4 + level.radius * 0.15;
+const BLAST_FALLOFF = 0.5;   // Energieverlust je Voxel Abstand (die Druckwelle verteilt sich)
+const BLAST_ABSORB = 1;      // Energieverlust je Würfel, der in gerader Linie dazwischen liegt
+const MASS_PER_DEPTH = 0.4;  // innen liegende Würfel sind schwerer (Masse 1 an der Oberfläche, +0,4 je Tiefenstufe)
+
+/** Abstand zwischen zwei Kristallen mindestens (Voxel): keiner im Wirkungskreis des anderen, wenn alles dazwischen voll ist */
+export const crystalSpacing = level => blastPower(level) / (BLAST_FALLOFF + BLAST_ABSORB) + 1;
+
+/**
+ * Sprengsatz: Welche lebenden Voxel reißt die Explosion eines Kristalls mit, und mit wie viel Restenergie?
+ * Energie am Voxel = Sprengkraft − Abstand · BLAST_FALLOFF − (Würfel in gerader Linie dazwischen) · BLAST_ABSORB.
+ * Bleibt etwas übrig, fliegt er weg; die Restenergie ist seine Bewegungsenergie. Innen liegende Würfel sind schwerer
+ * (`mass`, nach Tiefe) und damit träger: Tempo = √(2 · Energie / Masse) (Darstellung, effects-view.js → shatter).
+ * Durch freie Räume (Schacht, Außenseite) trägt die Druckwelle weit, durch dichte Würfel kaum – liegt der Kristall
+ * dicht unter der Hülle, reißt er sie mit auf.
+ * @returns {{ voxel: Voxel, energy: number, mass: number }[]}  ohne den Kristall selbst
+ */
+export function blastReach(asteroid, crystal, power) {
+  const { grid } = asteroid;
+  const reach = power / BLAST_FALLOFF;
+  const start = voxelKey(crystal.x, crystal.y, crystal.z);
+  const hits = [];
+  for (const v of asteroid.voxels) {
+    if (!v.alive || v === crystal) continue;
+    const dx = v.x - crystal.x;
+    const dy = v.y - crystal.y;
+    const dz = v.z - crystal.z;
+    const d = Math.hypot(dx, dy, dz);
+    if (d > reach) continue;
+    let energy = power - d * BLAST_FALLOFF;
+    // Würfel auf der Linie zählen: in halben Schritten, jedes Rasterfeld einmal, ohne Start und Ziel
+    const end = voxelKey(v.x, v.y, v.z);
+    const steps = Math.ceil(d * 2);
+    let last = start;
+    for (let k = 1; k < steps && energy > 0; k++) {
+      const t = k / steps;
+      const key = voxelKey(Math.round(crystal.x + dx * t), Math.round(crystal.y + dy * t), Math.round(crystal.z + dz * t));
+      if (key === last || key === end) continue;
+      last = key;
+      if (grid.has(key)) energy -= BLAST_ABSORB;
+    }
+    if (energy > 0) hits.push({ voxel: v, energy, mass: 1 + v.depth * MASS_PER_DEPTH });
+  }
+  return hits;
+}
 
 /** Farbe der Spreng-Blöcke (Riss-Kristalle): nur Spreng-Flieger (Munition 1) treffen sie, normale Schiffe nie. */
 export const BLAST = 'x';
 
-/** Kristalle in die erste Kernschicht (direkt unter der Haut), weit genug auseinander, dass sich ihre Bruchstücke
- *  nicht überlappen. Sie bekommen die Spreng-Farbe BLAST. */
+/** Kristalle in die inneren Kernschichten (ab der zweiten): Erst wenn man sich bis dorthin vorgearbeitet hat, liegt
+ *  der blinkende Würfel frei – seine Explosion (blastReach) reißt dann Kern und nahe Hülle auf. Mit etwas Abstand
+ *  zueinander (crystalSpacing; erreicht die Druckwelle doch einen anderen, geht der mit hoch). Sie bekommen die
+ *  Spreng-Farbe BLAST. */
 function placeCrystals(asteroid, level, rng) {
   const count = level.crystals ?? 0;
   if (!count) return;
-  const layer = 1;
-  const r = chunkRadius(level);
+  const minLayer = Math.min(2, level.core.length);
+  const r = crystalSpacing(level);
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
-  const candidates = asteroid.voxels.filter(v => v.layer === layer);
+  const candidates = asteroid.voxels.filter(v => v.layer >= minLayer);
   for (let n = 0; n < count; n++) {
-    const free = candidates.filter(v => asteroid.crystals.every(c => dist(c, v) > 2 * r + 1));
+    const free = candidates.filter(v => asteroid.crystals.every(c => dist(c, v) > r));
     if (!free.length) break;
     const crystal = rng.pick(free);
     crystal.crystal = true;
+    crystal.baseColor = crystal.color;
     crystal.color = BLAST;   // eigene Farbe: nur Spreng-Flieger treffen ihn
-    crystal.chunk = asteroid.voxels.filter(v => v !== crystal && dist(crystal, v) <= r);
     asteroid.crystals.push(crystal);
   }
 }
@@ -156,22 +219,23 @@ export function removeVoxel(asteroid, v) {
 }
 
 /**
- * Beste freie Fläche von `v` in Richtung eines der Punkte (z. B. Kamera und Schiff): die Normale mit dem größten
- * Skalarprodukt zur Richtung auf einen der Punkte. @returns {{ normal: number[], dot: number } | null}
+ * Liegt vor der Fläche `n` von `v` in gerader Linie nichts mehr bis nach draußen? Nur dann ist der Voxel über diese
+ * Fläche treffbar („ganz außen“ – wie der erste Pixel einer Reihe). Wände eines Lochs zählen so nicht: Ihre Seitenfläche
+ * schaut auf die gegenüberliegende Wand. Man muss Schicht für Schicht abtragen. Festfahren ist ausgeschlossen: Der
+ * äußerste Voxel in jeder Achsenrichtung ist immer treffbar.
  */
-export function bestFace(asteroid, v, points) {
-  let best = null;
-  for (const n of openNormals(asteroid, v))
-    for (const p of points) {
-      if (!p) continue;
-      const dx = p.x - v.x;
-      const dy = p.y - v.y;
-      const dz = p.z - v.z;
-      const d = (n[0] * dx + n[1] * dy + n[2] * dz) / (Math.hypot(dx, dy, dz) || 1);
-      if (!best || d > best.dot) best = { normal: n, dot: d };
-    }
-  return best;
+export function clearRay({ grid, bounds }, v, [dx, dy, dz]) {
+  for (let k = 1; ; k++) {
+    const x = v.x + dx * k;
+    const y = v.y + dy * k;
+    const z = v.z + dz * k;
+    if (Math.abs(x) > bounds || Math.abs(y) > bounds || Math.abs(z) > bounds) return true;
+    if (grid.has(voxelKey(x, y, z))) return false;
+  }
 }
+
+/** Ist `v` überhaupt treffbar (irgendeine freie Fläche mit freier Linie nach draußen)? */
+export const hittable = (asteroid, v) => openNormals(asteroid, v).some(n => clearRay(asteroid, v, n));
 
 /**
  * Wie stark zeigt `v` zur Kamera? Bestes Skalarprodukt aus freier Flächennormale und Richtung zur Kamera

@@ -8,11 +8,13 @@
 // Leistung: Nur von außen sichtbare Voxel werden gezeichnet (auch schräg sichtbare an Stufen). Ein innerer Voxel
 // kommt dazu, sobald ein Nachbar verschwindet – während dieser noch wegschrumpft und ihn verdeckt.
 // Spezial-Würfel (Riss-Kristalle, sprengen ein Bruchstück ab): eigener Candy-Würfel in seiner Farbe, der pulsierend
-// hell aufleuchtet und leicht atmet – deutlich als „besonders“ erkennbar, die Farbe bleibt aber lesbar.
+// hell aufleuchtet und leicht atmet – deutlich als „besonders“ erkennbar, die Farbe bleibt aber lesbar. Sie liegen in
+// inneren Schichten; damit man sie trotzdem früh entdeckt (und den Spreng-Flieger behält), blinkt ein Leuchtfleck durch
+// die Hülle, solange der Kristall auf der Seite zur Kamera liegt. Liegt er frei, bleibt nur ein Schein um ihn herum.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { COLORS } from '../core/colors.js';
-import { NEIGHBORS_26, visibleFromOutside, voxelKey } from '../core/asteroid.js';
+import { DIRS, NEIGHBORS_26, visibleFromOutside, voxelKey } from '../core/asteroid.js';
 import { easeInCubic, easeOutBack } from './easing.js';
 import { attachVoxelAo, withVoxelAo } from './voxel-ao.js';
 
@@ -28,11 +30,33 @@ const BEVEL = 0.16;      // Rundung der Kanten (Anteil der Voxelgröße)
 const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const PULSE = 5;         // rad/s – Puls der Spezial-Würfel
 const PULSE_WHITE = 0.55; // Anteil Weiß auf dem Höhepunkt des Pulses
+const RECOLOR = 0.45;     // s – Farbwechsel (Special): Aufblitzen und Übergang
 const SHRINK = 0.18;     // s – getroffener Voxel blitzt auf und schrumpft weg
 const FLASH = 0.6;       // Anteil Weiß beim Aufblitzen
 const APPEAR = 0.7;      // s – Körper wächst beim Laden hinein
 const VANISH = 0.35;     // s – … und schrumpft beim Levelwechsel heraus
 const WHITE = new THREE.Color(0xffffff);
+const GLOW_SIZE = 3.6;      // Voxel – Leuchtfleck eines Kristalls
+const GLOW_BURIED = 1;      // Deckkraft des Flecks durch die Hülle (auf dem Höhepunkt des Pulses)
+const GLOW_FREE = 0.35;     // … wenn der Kristall freiliegt
+const GLOW_RATE = 6;        // 1/s – Überblenden
+
+/** Weicher, runder Leuchtfleck (einmal erzeugt, von allen Kristallen geteilt) */
+let glowTexture = null;
+function getGlowTexture() {
+  if (glowTexture) return glowTexture;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.35, 'rgba(255,255,255,.45)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  glowTexture = new THREE.CanvasTexture(canvas);
+  return glowTexture;
+}
 
 /** Grundfarbe eines Voxels (leichte Helligkeitsvariation aus dem Seed) */
 export const voxelColor = (v, out = new THREE.Color()) => out.setHex(COLORS[v.color]).multiplyScalar(0.92 + v.shade * 0.12);
@@ -44,7 +68,7 @@ export const candyMaterial = (options = {}) => new THREE.MeshStandardMaterial({ 
 export const candyBox = size => new RoundedBoxGeometry(size * GAP, size * GAP, size * GAP, 2, size * BEVEL);
 
 export function createAsteroidView(scene, asteroid, level) {
-  const size = Math.min(1, 3.6 / level.radius);   // Voxelgröße: größere Körper bleiben gleich groß im Bild
+  const size = Math.min(1, 4 / level.radius);   // Voxelgröße: größere Körper bleiben gleich groß im Bild
   const tilt = new THREE.Group();
   tilt.rotation.x = TILT;
   const spin = new THREE.Group();
@@ -53,7 +77,6 @@ export function createAsteroidView(scene, asteroid, level) {
   scene.add(tilt);
 
   const mesh = new THREE.InstancedMesh(candyBox(size), withVoxelAo(candyMaterial(), size * GAP), asteroid.voxels.length);
-  const ao = attachVoxelAo(mesh, asteroid);   // Mulden, Krater und Stufen dunkler (voxel-ao.js)
   const matrix = new THREE.Matrix4();
   const color = new THREE.Color();
   const place = v => matrix.makeTranslation(v.x * size, v.y * size, v.z * size);
@@ -65,6 +88,10 @@ export function createAsteroidView(scene, asteroid, level) {
     mesh.setMatrixAt(v.i, visible ? place(v) : HIDDEN);
     mesh.setColorAt(v.i, voxelColor(v, color));
   }
+  // Mulden, Krater und Stufen dunkler; Krater-Inneres sieht wenig Himmel (voxel-ao.js)
+  const ao = attachVoxelAo(mesh, asteroid, { range: Math.round(4 + level.radius * 0.25), visible: i => shown[i] === 1 });
+  mesh.castShadow = true;      // Sonnenschatten (stage.js): Kraterränder und Erhebungen werfen Schatten auf die Figur
+  mesh.receiveShadow = true;
   spin.add(mesh);
 
   /** Nachbarn (auch diagonal), die jetzt von außen sichtbar sind, ab sofort zeichnen */
@@ -80,17 +107,21 @@ export function createAsteroidView(scene, asteroid, level) {
     if (changed) mesh.instanceMatrix.needsUpdate = true;
   }
 
-  /** voxel.i → { group, gem, base, dying? } – gem = der pulsierende Würfel */
+  /** voxel.i → { v, group, gem, glow, base, glowLevel, dying? } – gem = der pulsierende Würfel, glow = Leuchtfleck */
   const crystals = new Map();
   for (const v of asteroid.crystals) {
     if (!v.alive) continue;
     const base = new THREE.Color(COLORS[v.color]);
     const gem = new THREE.Mesh(mesh.geometry, candyMaterial({ color: base, emissive: base, roughness: 0.2 }));
+    // durch die Hülle sichtbar: ohne Tiefentest, additiv
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: getGlowTexture(), color: base, transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glow.scale.setScalar(GLOW_SIZE * size);
+    glow.renderOrder = 5;
     const group = new THREE.Group();
-    group.add(gem);
+    group.add(gem, glow);
     group.position.set(v.x * size, v.y * size, v.z * size);
     spin.add(group);
-    crystals.set(v.i, { group, gem, base });
+    crystals.set(v.i, { v, group, gem, glow, base, glowLevel: 0 });
   }
 
   const radius = Math.max(...asteroid.voxels.map(v => Math.hypot(v.x, v.y, v.z)));   // in Voxeln
@@ -100,22 +131,48 @@ export function createAsteroidView(scene, asteroid, level) {
   let vanish = null;       // s seit Beginn des Herausschrumpfens (null = bleibt)
   /** voxel.i → s seit dem Treffer (Voxel, die gerade aufblitzen und wegschrumpfen) */
   const dying = new Map();
+  /** voxel.i → s seit dem Farbwechsel (Special) – blitzen auf und blenden in die neue Farbe */
+  const recoloring = new Map();
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
   const scaleVec = new THREE.Vector3();
   const cameraLocal = new THREE.Vector3();
   const quaternionWorld = new THREE.Quaternion();
+  const crystalWorld = new THREE.Vector3();
+  const centerWorld = new THREE.Vector3();
+  const gridFrom = new THREE.Vector3();
+  const gridTo = new THREE.Vector3();
+  const lead = new THREE.Vector3();
+  // Kollision mit fliegenden Würfeln (effects-view → shatter): Lage des Rasters einmal pro Bild (update), dazu die
+  // vom Bild davor – daraus die Bewegung der Oberfläche (Drehen, Taumeln, Wischen: Würfel werden mitgerissen)
+  const gridNow = new THREE.Matrix4();
+  const gridBefore = new THREE.Matrix4();
+  const worldToGrid = new THREE.Matrix4();
+  const gridRotation = new THREE.Quaternion();
+  const gridScaleVec = new THREE.Vector3();
+  let gridScale = size;     // Welteinheiten je Rasterschritt
+  let frameDt = 0;
+  let framesSeen = 0;
+  const probe = new THREE.Vector3();
+  const pushGrid = new THREE.Vector3();
+  const before = new THREE.Vector3();
+  /** lebt ein Voxel im Rasterfeld (gerundet)? */
+  const solidAt = (x, y, z) => asteroid.grid.has(voxelKey(Math.round(x), Math.round(y), Math.round(z)));
+  const HALF = 0.45;        // halbe Kantenlänge eines fliegenden Würfels (Raster) – knapp unter 0,5, damit er in Lücken passt
 
   function removeCrystal(i) {
     const c = crystals.get(i);
     spin.remove(c.group);
     c.gem.material.dispose();
+    c.glow.material.dispose();
     crystals.delete(i);
   }
 
   return {
     size,
     spin,
+    /** Radius des Körpers in Welteinheiten (ausgewachsen) */
+    radius: (radius + 0.5) * size,
     setY(y) {
       baseY = y;
     },
@@ -131,6 +188,7 @@ export function createAsteroidView(scene, asteroid, level) {
     },
     update(dt) {
       time += dt;
+      ao.update(dt);
       appear += dt;
       const grow = vanish === null ? easeOutBack(appear / APPEAR) : 1 - easeInCubic((vanish += dt) / VANISH);
       tilt.scale.setScalar(Math.max(0.001, grow));
@@ -156,7 +214,32 @@ export function createAsteroidView(scene, asteroid, level) {
         mesh.instanceColor.needsUpdate = true;
       }
 
+      // Lage des Rasters für Kollisionen festhalten (jetzt und im Bild davor)
+      tilt.updateMatrixWorld(true);
+      gridBefore.copy(framesSeen++ ? gridNow : spin.matrixWorld);
+      gridNow.copy(spin.matrixWorld);
+      worldToGrid.copy(gridNow).invert();
+      gridNow.decompose(probe, gridRotation, gridScaleVec);
+      gridScale = size * gridScaleVec.x;
+      frameDt = dt;
+
+      if (recoloring.size) {
+        for (const [i, t] of recoloring) {
+          const p = Math.min(1, (t + dt) / RECOLOR);
+          const v = asteroid.voxels[i];
+          if (v.alive && shown[i]) mesh.setColorAt(i, voxelColor(v, color).lerp(WHITE, 0.8 * (1 - p)));
+          if (p >= 1) recoloring.delete(i);
+          else recoloring.set(i, t + dt);
+        }
+        mesh.instanceColor.needsUpdate = true;
+      }
+
       const pulse = 0.5 + 0.5 * Math.sin(time * PULSE);
+      if (crystals.size) {
+        tilt.updateMatrixWorld(true);
+        spin.getWorldPosition(centerWorld);
+      }
+      const reach = (radius + 0.5) * size;
       for (const [i, c] of crystals) {
         if (c.dying !== undefined) {
           c.dying += dt;
@@ -167,6 +250,12 @@ export function createAsteroidView(scene, asteroid, level) {
         c.gem.scale.setScalar(0.96 + pulse * 0.1);
         c.gem.material.color.copy(c.base).lerp(WHITE, pulse * PULSE_WHITE);
         c.gem.material.emissiveIntensity = 0.15 + pulse * 0.9;
+        // Leuchtfleck: vergraben nur auf der Seite zur Kamera (+z), sonst schiene er durch den ganzen Körper
+        const buried = !visibleFromOutside(asteroid, c.v);
+        const front = (c.group.getWorldPosition(crystalWorld).z - centerWorld.z) / reach;
+        const want = buried ? GLOW_BURIED * Math.min(1, Math.max(0, front * 1.6 + 0.15)) : GLOW_FREE;
+        c.glowLevel += (want - c.glowLevel) * (1 - Math.exp(-GLOW_RATE * dt));
+        c.glow.material.opacity = c.glowLevel * (0.25 + 0.75 * pulse);
       }
     },
     /** Hülle des Körpers in Weltkoordinaten (Mittelpunkt + Radius) – Bruchstücke fliegen außen herum */
@@ -187,6 +276,92 @@ export function createAsteroidView(scene, asteroid, level) {
     normalToWorld([x, y, z], out = new THREE.Vector3()) {
       tilt.updateMatrixWorld(true);
       return out.set(x, y, z).applyQuaternion(spin.getWorldQuaternion(quaternionWorld));
+    },
+    /**
+     * Stößt ein fliegender Würfel (Bewegung `from` → `to`, Welt) an einen stehenden Würfel des Körpers? Geprüft wird
+     * seine Vorderkante (halbe Würfelbreite in Flugrichtung). @returns {THREE.Vector3 | null}  Weltnormale der
+     * getroffenen Fläche (in `out`), sonst null
+     */
+    collide(from, to, out = new THREE.Vector3()) {
+      gridFrom.copy(from).applyMatrix4(worldToGrid).divideScalar(size);
+      gridTo.copy(to).applyMatrix4(worldToGrid).divideScalar(size);
+      lead.copy(gridTo).sub(gridFrom);
+      if (lead.lengthSq() < 1e-8) return null;
+      lead.normalize().multiplyScalar(HALF).add(gridTo);
+      const cell = [Math.round(lead.x), Math.round(lead.y), Math.round(lead.z)];
+      if (!asteroid.grid.has(voxelKey(...cell))) return null;
+      // Eintrittsfläche: die Achse, auf der die Vorderkante am tiefsten im Feld steckt, gegen die Flugrichtung
+      const depth = [lead.x - cell[0], lead.y - cell[1], lead.z - cell[2]];
+      const move = [gridTo.x - gridFrom.x, gridTo.y - gridFrom.y, gridTo.z - gridFrom.z];
+      let axis = 0;
+      let best = -Infinity;
+      for (let a = 0; a < 3; a++) {
+        if (Math.abs(move[a]) < 1e-6) continue;
+        // wie weit die Kante über die Feldgrenze (−0,5 bzw. +0,5) in Bewegungsrichtung eingedrungen ist – am wenigsten = zuerst gekreuzt
+        const entered = 0.5 + Math.sign(move[a]) * depth[a];
+        const score = -entered;
+        if (score > best) {
+          best = score;
+          axis = a;
+        }
+      }
+      const n = [0, 0, 0];
+      n[axis] = -Math.sign(move[axis]) || 1;
+      if (asteroid.grid.has(voxelKey(cell[0] + n[0], cell[1] + n[1], cell[2] + n[2]))) {
+        // Nachbarfeld davor ist auch voll (Kante/Ecke): die Achse mit der größten Bewegung nehmen
+        const a = move.map(Math.abs).indexOf(Math.max(...move.map(Math.abs)));
+        n.fill(0);
+        n[a] = -Math.sign(move[a]);
+      }
+      return out.set(...n).applyQuaternion(gridRotation).normalize();
+    },
+    /**
+     * Hat sich der Körper in einen fliegenden Würfel (Mittelpunkt `position`, Welt) hineingedreht? Dann den
+     * Verschiebevektor (Welt) heraus an die freie Seite in `out` – sonst null.
+     */
+    penetration(position, out = new THREE.Vector3()) {
+      const g = gridFrom.copy(position).applyMatrix4(worldToGrid).divideScalar(size);
+      pushGrid.set(0, 0, 0);
+      // Mittelpunkt steckt schon im Körper (die Figur hat ihn in einem Bild weit überstrichen): ins nächste freie
+      // Nachbarfeld – das, zu dem er am nächsten liegt
+      if (solidAt(g.x, g.y, g.z)) {
+        const cell = [Math.round(g.x), Math.round(g.y), Math.round(g.z)];
+        let best = null;
+        let bestDistance = Infinity;
+        for (const [dx, dy, dz] of DIRS) {
+          if (solidAt(cell[0] + dx, cell[1] + dy, cell[2] + dz)) continue;
+          const d = Math.hypot(cell[0] + dx - g.x, cell[1] + dy - g.y, cell[2] + dz - g.z);
+          if (d < bestDistance) {
+            bestDistance = d;
+            best = [dx, dy, dz];
+          }
+        }
+        if (!best) return null;   // ringsum voll – nichts zu machen, er wird gleich weggeräumt (Lebenszeit)
+        // an die Grenze zum freien Feld, Kante knapp draußen
+        const axis = best.findIndex(c => c !== 0);
+        const key = ['x', 'y', 'z'][axis];
+        pushGrid[key] = cell[axis] + best[axis] * (0.5 + HALF + 0.01) - g[key];
+        return out.copy(pushGrid).multiplyScalar(gridScale).applyQuaternion(gridRotation);
+      }
+      for (const axis of ['x', 'y', 'z'])
+        for (const sign of [-1, 1]) {
+          probe.copy(g);
+          probe[axis] += sign * HALF;
+          if (!solidAt(probe.x, probe.y, probe.z)) continue;
+          // bis an die Feldgrenze zurück (Kante des Würfels auf die Fläche des Nachbarfelds)
+          const target = Math.round(probe[axis]) - sign * (0.5 + HALF + 0.01);
+          const delta = target - g[axis];
+          if (Math.sign(delta) === -sign && Math.abs(delta) > Math.abs(pushGrid[axis])) pushGrid[axis] = delta;
+        }
+      if (pushGrid.lengthSq() === 0) return null;
+      return out.copy(pushGrid).multiplyScalar(gridScale).applyQuaternion(gridRotation);
+    },
+    /** Geschwindigkeit der Körperoberfläche an diesem Weltpunkt (Drehen, Taumeln, Wischen) */
+    surfaceVelocity(position, out = new THREE.Vector3()) {
+      if (frameDt <= 0) return out.set(0, 0, 0);
+      // derselbe Rasterpunkt im Bild davor
+      before.copy(position).applyMatrix4(worldToGrid).applyMatrix4(gridBefore);
+      return out.copy(position).sub(before).divideScalar(frameDt);
     },
     /** Weltpunkt → Voxel-Raster (z. B. Schiffsposition für die Schussbahn) */
     toGrid(world, out = new THREE.Vector3()) {
@@ -214,8 +389,26 @@ export function createAsteroidView(scene, asteroid, level) {
       revealAround(v);
       ao.refresh(v);
     },
+    /** Special Farbwechsel: diese Voxel haben eine neue Farbe – blitzen hell auf und gehen in die neue Farbe über */
+    recolor(voxels) {
+      for (const v of voxels) recoloring.set(v.i, 0);
+    },
+    /** Kristall entschärft (game.js → defuse): der Spezial-Würfel schrumpft weg, darunter liegt ein normaler Block */
+    defuse(v) {
+      mesh.setColorAt(v.i, voxelColor(v, color));
+      mesh.instanceColor.needsUpdate = true;
+      if (v.alive && visibleFromOutside(asteroid, v)) {
+        shown[v.i] = 1;
+        mesh.setMatrixAt(v.i, place(v));
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+      if (crystals.has(v.i)) crystals.get(v.i).dying = 0;
+    },
     dispose() {
-      for (const { gem } of crystals.values()) gem.material.dispose();
+      for (const { gem, glow } of crystals.values()) {
+        gem.material.dispose();
+        glow.material.dispose();
+      }
       scene.remove(tilt);
       mesh.geometry.dispose();
       mesh.material.dispose();

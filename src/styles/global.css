@@ -49,20 +49,6 @@ html {
   outline-offset: 2px;
 }
 
-/* Schiffe in der Warteschlange (ui/queue.js): Candy-Kacheln in der Schiffsfarbe (--c), wartende kleiner und gedämpft */
-@layer components {
-  .ship {
-    @apply flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl text-[13px] font-extrabold;
-  }
-  .ship.is-waiting {
-    @apply scale-[.82] opacity-60;
-  }
-  /* vorne ↔ wartend weich überblenden (Größe, Helligkeit); transform/box-shadow bleiben kurz fürs Drücken */
-  .ship.candy {
-    transition: transform 90ms ease, box-shadow 90ms ease, filter 220ms ease, scale 220ms ease, opacity 220ms ease;
-  }
-}
-
 /* Logo (components/Logo.astro): zwei Candy-Farben, Glanzlicht, Extrusion. --top/--bottom = Verlauf, --depth = Seite */
 .logo {
   display: inline-flex;
@@ -84,6 +70,58 @@ html {
   filter: drop-shadow(0 0.02em 0 var(--depth)) drop-shadow(0 0.02em 0 var(--depth)) drop-shadow(0 0.025em 0 var(--depth))
     drop-shadow(0 0.1em 0.12em rgb(0 0 0 / 0.4));
 }
+/* Gummi-Hüpfer je Wort: alle paar Sekunden einmal ducken, hochschnellen, platt landen, nachwippen; „pop“ hüpft etwas
+   später – mitsamt dem Kristall */
+.logo-word {
+  display: inline-flex;
+  align-items: baseline;
+  transform-origin: 50% 90%;
+  animation: logo-bounce 3.6s cubic-bezier(0.45, 0, 0.55, 1) 0.6s infinite both;
+}
+.logo-pop.logo-word {
+  animation-delay: 0.75s;
+}
+/* Spreng-Kristall als „o“ (render/logo-gem.js zeichnet ihn in WebGL). Bis er geladen ist, stehen die beiden „p“
+   zusammen; dann wächst er heraus (logo-gem.js) und schiebt sie auseinander. Die Zeichenfläche ist größer als der
+   Würfel, damit Glanz und Kanten nicht abgeschnitten werden. Ohne WebGL: flaches magentafarbenes Candy-Quadrat. */
+.logo-gem {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 0.46em;
+  margin: 0;
+  border-radius: 0.09em;
+  z-index: 1;   /* liegt etwas über den beiden „p“ */
+  transition: width 550ms cubic-bezier(0.34, 1.56, 0.64, 1), margin 550ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.logo-gem.is-ready,
+.logo-gem.is-fallback {
+  width: 0.46em;
+  margin: 0 0.02em 0 0.04em;
+}
+.logo-gem.is-fallback {
+  background: linear-gradient(145deg, #ff9cf0, #ff2bd6 50%, #b3129a);
+}
+/* unsichtbares „o“ im Kristall: nur zum Markieren/Kopieren („corepop“ statt „corepp“) */
+.logo-gem-letter {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  line-height: 0.46em;
+}
+.logo-gem-canvas {
+  position: absolute;
+  left: calc(50% - 0.5em);     /* breiter als der Platz: der Würfel ragt ein Stück über die „p“ */
+  top: calc(50% - 0.5em);
+  width: 1em;
+  height: 1em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-word {
+    animation: none;
+  }
+}
 /* Glanzlicht: derselbe Text, oben weiß, nach der Hälfte durchsichtig */
 .logo-part::after {
   content: attr(data-text);
@@ -104,6 +142,37 @@ html {
   --top: #ffa3d6;
   --bottom: #ff3d8b;
   --depth: #a8124f;
+}
+
+/* Specials im Spiel: blenden ein, wenn freigeschaltet; eingesetzt flach und blass; „wählen“ pulsiert (Farbwechsel) */
+.special {
+  transition: opacity 250ms ease, scale 250ms ease, filter 250ms ease;
+  @starting-style {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+.special[aria-disabled="true"] {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.special.is-picking {
+  animation: special-pick 0.9s ease-in-out infinite alternate;
+}
+@keyframes special-pick {
+  to { scale: 1.15; filter: brightness(1.35); }
+}
+/* Sterne (Sieg-Dialog, Startseite): erreichte gold, nacheinander mit kleinem Sprung */
+.star {
+  display: inline-block;
+  transition: color 300ms ease, scale 300ms cubic-bezier(.3, 1.6, .5, 1);
+}
+.star.is-on {
+  color: #ffd54a;
+  scale: 1.15;
+}
+[data-stars] .star.is-on {
+  scale: 1;
 }
 
 /* Candy-Buttons: einfarbig im Logo-Look – Verlauf, Glanzlicht oben, 3D-Kante unten, drückt sich beim Antippen ein.
@@ -137,10 +206,9 @@ html {
       0 2px 0 var(--edge),
       0 4px 8px rgb(0 0 0 / 0.45);
   }
-  /* nicht antippbar (gesperrtes Level, wartendes Schiff): flach und gedämpft */
+  /* nicht antippbar (gesperrtes Level): flach und gedämpft */
   .candy[aria-disabled="true"],
-  .candy:disabled,
-  .candy.is-waiting {
+  .candy:disabled {
     filter: saturate(0.55) brightness(0.7);
     box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.2), 0 3px 0 var(--edge);
   }
@@ -195,15 +263,6 @@ html {
 .toast.toast-in {
   opacity: 1;
   transform: none;
-}
-
-.shake {
-  animation: shake 300ms;
-}
-@keyframes shake {
-  0%, 100% { translate: 0; }
-  25% { translate: -6px; }
-  75% { translate: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

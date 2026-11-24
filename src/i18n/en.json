@@ -8,7 +8,7 @@
   },
   "home": {
     "claim": "Crack the core – colour by colour.",
-    "intro": "Tap spaceships to send them into the hangar. Each ship only shoots blocks of its own colour. Plan ahead: the hangar has only a few bays.",
+    "intro": "Tap spaceships – they only hit blocks of their own color on the very outside. Swipe the row sideways, but careful: whatever drops off is gone.",
     "play": "Play",
     "continue": "Continue with level {n}",
     "levels": "Levels",
@@ -17,27 +17,21 @@
   "game": {
     "level": "Level {n}",
     "progress": "Progress",
-    "hint": "Tap a ship. It only shoots blocks of its own colour. Swipe to turn the figure.",
-    "queue": "Ship queue",
-    "ship": "{color} ship, {count} shots",
-    "waiting": "Waiting: {color}, {count} shots",
+    "stage": "Playfield: figure, hangar and ship queue. Keys 1 to 5 launch a ship, arrow keys slide the front row.",
+    "hint": "Tap a ship – it flies to the pad above. Swipe the front row sideways: whatever drops off is gone. Red number: its color would run short without it. Swipe above to turn the figure.",
     "more": "+{count}",
-    "hangarFull": "The hangar is full.",
     "won": "Popped!",
     "allDone": "All levels done! 🚀",
     "lost": "Hangar jammed!",
-    "lostText": "No ship in the hangar can find a target of its colour.",
+    "lostText": "Every pad is taken, and no ship can find a block of its color on the very outside. Only launch ships when enough of their color is on the outside – slide the others aside until then.",
+    "lostAmmo": "Too many discarded!",
+    "lostAmmoText": "There isn't enough ammo left for {color}. Ships with a red number are still needed – don't slide them off.",
     "next": "Next level",
     "again": "Try again",
     "fromStart": "Start over",
     "noWebgl": "Sorry, your browser cannot show 3D graphics.",
-    "breakOff": "Direct hit! Chunk blasted off",
-    "skipped": {
-      "one": "+{count} ship skipped",
-      "other": "+{count} ships skipped"
-    },
-    "bomber": "Blast bomber, 1 bomb",
-    "bomberWaiting": "Waiting: blast bomber"
+    "breakOff": "Direct hit! Charge detonated",
+    "bomberGone": "Bomber discarded – a crystal went dark"
   },
   "colors": {
     "w": "Silver",
@@ -75,5 +69,36 @@
       "tailwindcss": "Styling (CSS)",
       "vitest": "Automated tests of the game logic"
     }
+  },
+  "special": {
+    "pad": {
+      "name": "Pad +1",
+      "hint": "An extra pad floats above the deck – any front ship may land there if its own pad is taken."
+    },
+    "recolor": {
+      "name": "Recolor",
+      "hint": "Tap a ship: the outermost blocks turn into its color."
+    },
+    "nova": {
+      "name": "Supernova",
+      "hint": "A huge explosion tears the figure open."
+    },
+    "pick": "Tap a ship – the hull turns into its color",
+    "unlocked": "{name} unlocked!"
+  },
+  "stars": {
+    "label": "{count} of 3 stars",
+    "two": "At most half of the reserve discarded",
+    "three": "Hardly anything discarded, no bomber wasted"
+  },
+  "design": {
+    "title": "Ships",
+    "locked": "from {count} ★",
+    "unlocked": "New ship unlocked: {name}",
+    "classic": "Classic",
+    "paper": "Paper plane",
+    "gummy": "Gummy ship",
+    "rocket": "Retro rocket",
+    "ufo": "Mini UFO"
   }
 }

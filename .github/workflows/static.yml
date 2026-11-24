@@ -1,0 +1,78 @@
+# Testet, baut die statische Seite (dist/) und veröffentlicht sie auf GitHub Pages: https://schmarante.github.io/corepop/
+# Läuft bei jedem Push auf develop (und von Hand über den Actions-Tab). Aufbau wie in ../wyrfl.
+# Einmalig einrichten: Repository → Settings → Pages → Source: „GitHub Actions“ (sonst läuft GitHubs eigener
+# Jekyll-Build und der Deploy-Schritt schlägt fehl).
+name: Deploy to GitHub Pages
+
+on:
+  # jeder Push auf develop
+  push:
+    branches: ["develop"]
+
+  # von Hand im Actions-Tab
+  workflow_dispatch:
+
+# GITHUB_TOKEN darf auf Pages veröffentlichen
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# nur ein Deploy gleichzeitig; wartende dazwischen fallen weg, ein laufender wird nicht abgebrochen
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      # Abhängigkeiten nur über yarn.lock (Yarn v1, auf den GitHub-Runnern vorinstalliert)
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      # Spiellogik, Spielstand, Übersetzungen und die Bot-Simulationen (tests/, ~30 s)
+      - name: Test
+        run: yarn test
+
+      # Projektseite liegt in einem Unterordner (/corepop/): Basispfad und öffentliche Adresse kommen aus den
+      # Pages-Einstellungen (base_path "/corepop", base_url "https://schmarante.github.io/corepop") – astro.config.mjs
+      # liest beides. Die Repository-Variable SITE_URL (Settings → Secrets and variables → Actions → Variables)
+      # überschreibt die Adresse, z. B. für eine eigene Domain.
+      # Test-Tasten B/W/P und die Dev-Seiten (siehe .env.example): Repository-Variable PUBLIC_DEBUG=true schaltet sie
+      # ein – ungesetzt = aus.
+      - name: Build
+        run: yarn build
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}/
+          SITE_URL: ${{ vars.SITE_URL || format('{0}/', steps.pages.outputs.base_url) }}
+          PUBLIC_DEBUG: ${{ vars.PUBLIC_DEBUG || 'false' }}
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

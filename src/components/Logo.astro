@@ -1,7 +1,11 @@
 ---
-// Schriftzug „corepop“ im Candy-Look: „core“ und „pop“ zusammengeschrieben, aber in zwei Farben.
-// Aufbau pro Wortteil: Verlauf als Füllung (background-clip: text), Glanzlicht als ::after mit demselben Text,
-// Tiefe über gestapelte drop-shadows (die Versätze addieren sich zu einer „Extrusion“). Styles: global.css (.logo).
+// Schriftzug „corepop“ im Candy-Look: „core“ und „pop“ zusammengeschrieben, aber in zwei Farben. Das „o“ in „pop“ ist
+// der Spreng-Kristall aus dem Spiel – abgerundeter Candy-Würfel, leicht durchscheinend, pulsiert und dreht sich langsam
+// (render/logo-gem.js, kleine WebGL-Fläche; ohne WebGL eine CSS-Ersatzform) und hüpft mit dem Wort mit.
+// Aufbau pro Buchstabengruppe: Verlauf als Füllung (background-clip: text), Glanzlicht als ::after mit demselben Text,
+// Tiefe über gestapelte drop-shadows (die Versätze addieren sich zu einer „Extrusion“). Das Hüpfen sitzt am Wort
+// (.logo-word), damit Kristall und Buchstaben zusammen springen. Im Kristall steckt ein unsichtbares „o“ als Text –
+// markieren und kopieren ergibt „corepop“, nicht „corepp“. Styles: global.css (.logo).
 // Schrift: Sour Gummy (nur hier verwendet – siehe global.css @font-face).
 interface Props {
   class?: string;
@@ -10,5 +14,11 @@ const { class: className = 'text-7xl' } = Astro.props;
 ---
 
 <span class:list={['logo', className]} aria-label="corepop" role="img">
-  <span class="logo-part logo-core" data-text="core" aria-hidden="true">core</span><span class="logo-part logo-pop" data-text="pop" aria-hidden="true">pop</span>
+  <span class="logo-word logo-core" aria-hidden="true"><span class="logo-part" data-text="core">core</span></span><span class="logo-word logo-pop" aria-hidden="true"><span class="logo-part" data-text="p">p</span><span class="logo-gem"><span class="logo-gem-letter">o</span><canvas data-logo-gem class="logo-gem-canvas"></canvas></span><span class="logo-part" data-text="p">p</span></span>
 </span>
+
+<script>
+  import { startLogoGem } from '../scripts/render/logo-gem.js';
+
+  document.querySelectorAll<HTMLCanvasElement>('[data-logo-gem]').forEach(canvas => startLogoGem(canvas));
+</script>
