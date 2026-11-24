@@ -152,6 +152,13 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - **Performance/Akku:** Jede Animation läuft über `render/frame-loop.js` mit fester Bildrate: Spiel `GAME_FPS` = 60,
   Hintergrund `BACKGROUND_FPS` = 30. Pixel-Ratio gedeckelt (Bühne 2, Sterne 1.5). Animationen bildratenunabhängig
   schreiben (mit `dt`, z. B. `1 - Math.exp(-rate * dt)` statt fester Faktoren pro Bild).
+- **Automatische Grafik-Stufe** (`render/quality.js`, gemerkt in `store/quality.js`, nur im Spiel: `createStage({ adaptive })`):
+  Erreicht das Spiel zwei Messfenster (je 2 s) lang keine 80 % der möglichen Bildrate, geht es eine Stufe herunter:
+  1 Schatten aus · 2 Pixel-Ratio 1,5 + Würfel mit 108 statt 300 Dreiecken (`candyBox`, ab dem nächsten Level) ·
+  3 Pixel-Ratio 1. „Möglich“ berücksichtigt das Display (90 Hz → 45 fps, Energiesparmodus 30 Hz → 30 fps; Display-Rate
+  = kürzester rAF-Abstand, höchstens 33 ms). Zum Testen `?quality=0…3` (fest, ohne Automatik).
+  Hintergrund: Boss-Level zeichnen ~4 500 Würfel = 1,4 Mio. Dreiecke, mit Schattendurchlauf fast 3 Mio. pro Bild.
+  Ohne Sonnenschatten fallen die blau/pinken Randlichter an Seitenflächen stärker auf (bewusst in Kauf genommen).
 
 ## Look
 - 3D im Candy-Look: abgerundete, glänzende Würfel bündig ohne Fugen (`candyBox`, `candyMaterial` in

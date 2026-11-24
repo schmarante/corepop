@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { startFrameLoop, GAME_FPS } from './frame-loop.js';
+import { quality, onQualityChange, createQualityMeter } from './quality.js';
 
 const FOV = 50;
 const MIN_HALF_WIDTH = 6.2;   // so viel Welt muss links und rechts der Mitte sichtbar sein (Hangar-Reihe mit 5 Plattformen)
@@ -30,16 +31,17 @@ const SHAKE_AMOUNT = 0.35;    // Welteinheiten bei voller Stärke
 /**
  * @param {HTMLCanvasElement} canvas  liegt in einem Container, der die Größe vorgibt
  * @param {{ onLayout?: (anchors: { asteroidY: number, hangarY: number, halfHeight: number }) => void,
- *           minHalfWidth?: number, minHalfHeight?: number, insets?: () => { top: number, bottom: number } }} [options]
+ *           minHalfWidth?: number, minHalfHeight?: number, insets?: () => { top: number, bottom: number },
+ *           adaptive?: boolean }} [options]
+ *   adaptive: Bildrate messen und die Grafik-Stufe bei Bedarf senken (render/quality.js) – nur im Spiel
  *   insets: px oben/unten, die von Oberfläche verdeckt sind (Kopfzeile, Schiffsauswahl). Die Bühne zeichnet trotzdem
  *   über den ganzen Bildschirm (nichts wird an einer Kante abgeschnitten), platziert Körper und Hangar aber im freien
  *   Bereich dazwischen.
  *   minHalfWidth/minHalfHeight: wie viel Welt sichtbar sein muss – Standard fürs Spiel (Hangar-Reihe, Stapel aus Körper,
  *   Deck und Warteschlange), kleiner für Vorschauen, in denen nur der Körper zu sehen ist (Dev-Übersicht)
  */
-export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, minHalfHeight = STACK_HEIGHT / 2, insets } = {}) {
+export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, minHalfHeight = STACK_HEIGHT / 2, insets, adaptive = false } = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.NeutralToneMapping;   // satte Farben ohne ausgebrannte Glanzlichter
   const scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -53,9 +55,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
   sun.position.set(6, 10, 12);
   // Sonnenschatten nur auf der Figur (asteroid-view.js: cast/receive): weiches Schattenbild, das der Figur folgt
-  renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  sun.castShadow = true;
   sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
@@ -98,9 +98,19 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     anchors.hangarY = anchors.asteroidY - STACK.bodyToHangar - slack * SLACK.gap;
     onLayout?.(anchors);
   }
+  /** Grafik-Stufe anwenden (Schatten an/aus übersetzt die Shader einmal neu – three.js merkt das an den Lichtern) */
+  function applyQuality({ shadows, pixelRatio }) {
+    renderer.shadowMap.enabled = shadows;
+    sun.castShadow = shadows;
+    renderer.setPixelRatio(Math.min(devicePixelRatio, pixelRatio));
+    resize();
+  }
+  const stopQuality = onQualityChange(applyQuality);
+  const meter = adaptive ? createQualityMeter(GAME_FPS) : null;
+
   const observer = new ResizeObserver(resize);
   observer.observe(canvas.parentElement);
-  resize();
+  applyQuality(quality());
 
   let loop = null;
   return {
@@ -138,11 +148,13 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
         const k = shake * shake * SHAKE_AMOUNT;   // quadratisch: kleine Werte kaum spürbar, große deutlich
         camera.position.set(home.x + (Math.random() * 2 - 1) * k, home.y + (Math.random() * 2 - 1) * k, home.z);
         renderer.render(scene, camera);
+        meter?.frame();
         canvas.classList.add('is-ready');   // erstes Bild steht → weich einblenden (CSS .fade-in)
-      }, { fps: GAME_FPS });
+      }, { fps: GAME_FPS, onTick: meter?.tick });
     },
     dispose() {
       loop?.stop();
+      stopQuality();
       observer.disconnect();
       environment.dispose();
       renderer.dispose();

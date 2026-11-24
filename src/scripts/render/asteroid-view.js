@@ -17,6 +17,7 @@ import { COLORS } from '../core/colors.js';
 import { DIRS, NEIGHBORS_26, visibleFromOutside, voxelKey } from '../core/asteroid.js';
 import { easeInCubic, easeOutBack } from './easing.js';
 import { attachVoxelAo, withVoxelAo } from './voxel-ao.js';
+import { quality } from './quality.js';
 
 const TILT = 0.35;
 // Taumeln: [Amplitude (rad bzw. Welteinheiten), Frequenz (rad/s), Phase] – mehrere Wellen je Achse überlagert
@@ -73,8 +74,9 @@ export const voxelColor = (v, out = new THREE.Color()) => out.setHex(COLORS[v.co
 /** Glänzendes Candy-Material (Umgebungslicht kommt aus stage.js) */
 export const candyMaterial = (options = {}) => new THREE.MeshStandardMaterial({ roughness: 0.38, metalness: 0, ...options });
 
-/** Geometrie eines Candy-Würfels der Kantenlänge `size` */
-export const candyBox = size => new RoundedBoxGeometry(size * GAP, size * GAP, size * GAP, 2, size * BEVEL);
+/** Geometrie eines Candy-Würfels der Kantenlänge `size` – Rundung je nach Grafik-Stufe (render/quality.js:
+ *  2 Segmente = 300 Dreiecke, 1 Segment = 108) */
+export const candyBox = size => new RoundedBoxGeometry(size * GAP, size * GAP, size * GAP, quality().segments, size * BEVEL);
 
 export function createAsteroidView(scene, asteroid, level, { glitch = false } = {}) {
   const size = Math.min(1, 4 / level.radius);   // Voxelgröße: größere Körper bleiben gleich groß im Bild

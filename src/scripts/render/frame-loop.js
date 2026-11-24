@@ -6,14 +6,22 @@ export const GAME_FPS = 60;
 export const BACKGROUND_FPS = 30;
 const MAX_DT = 0.067;   // s – nach einem Hänger höchstens zwei Bilder nachholen, nie große Sprünge
 
-/** @param {(dt: number) => void} update  @returns {{ stop: () => void }} */
-export function startFrameLoop(update, { fps }) {
+const SLACK = 4;   // ms Toleranz gegen Messrauschen: 30 fps = bei 60 Hz jedes 2. Bild, bei 120 Hz jedes 4.
+
+/** Bildabstand in ms, den die Schleife bei `fps` auf einem Display mit Bildabstand `refresh` ms erreicht
+ *  (z. B. 90 Hz: jedes 2. Bild → 45 fps) */
+export const loopInterval = (fps, refresh) => Math.max(1, Math.ceil((1000 / fps - SLACK) / refresh)) * refresh;
+
+/** @param {(dt: number) => void} update  @param {{ fps: number, onTick?: (now: number) => void }} options
+ *  onTick: bei jedem Bild des Displays, auch übersprungenen (misst die Bildwiederholrate)
+ *  @returns {{ stop: () => void }} */
+export function startFrameLoop(update, { fps, onTick }) {
   const interval = 1000 / fps;
-  const slack = 4;   // ms Toleranz gegen Messrauschen: 30 fps = bei 60 Hz jedes 2. Bild, bei 120 Hz jedes 4.
   let last = performance.now();
   let frame = requestAnimationFrame(function loop(now) {
     frame = requestAnimationFrame(loop);
-    if (now - last < interval - slack) return;
+    onTick?.(now);
+    if (now - last < interval - SLACK) return;
     const dt = Math.min(MAX_DT, (now - last) / 1000);
     last = now;
     update(dt);

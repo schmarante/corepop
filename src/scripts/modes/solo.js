@@ -39,6 +39,7 @@ export function startSolo(root, locale) {
   try {
     stage = createStage(canvas, {
       onLayout: placeViews,
+      adaptive: true,   // zu langsam → Grafik-Stufe senken (render/quality.js)
       // verdeckt: oben die Kopfzeile (unten nur der sichere Rand) – Körper, Hangar und Warteschlange kommen dazwischen
       insets: () => {
         const play = $('[data-play]').getBoundingClientRect();
