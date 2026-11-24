@@ -276,6 +276,8 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   statt ~4 600 Würfel); jetzt dicht gepackt (`asteroid-view.js`: `slotOf`/`voxelAt`, `mesh.count`, AO je Voxel als
   Quelle in `voxel-ao.js` → `place`). Flieger waren ~56 Meshes = Draw-Calls; jetzt gesammelt (`attachShipBatches` in
   `ship-model.js`, von `stage.js` angehängt). Level 1, Stufe 3: Draw-Calls 86 → 37, Dreiecke der Figur −40 %.
+  Kleine Teilchen (Treffer-Spritzer, Funken, Trümmer) je Art ein InstancedMesh (`instancePool` in `effects-view.js`;
+  vorher je Teilchen ein Mesh – eine Spreng-Explosion = 72 Draw-Calls); Funken als Flächen zur Kamera mit Glanz.
 - Test-Hilfe: mit `PUBLIC_DEBUG=true` bauen (`.env`, siehe `.env.example`) → Taste **B** sprengt den nächsten Kristall, Taste **W** gewinnt das Level sofort, Taste **P** schaltet alles frei (alle Level, überall drei Sterne → alle Specials und Flieger).
 - Testen im Browser ohne Klicken: headless Chromium per DevTools-Pipe (rAF läuft in `--virtual-time-budget` NICHT).
 - Spielbildschirm ist Vollbild (`Base fullscreen`, `h-dvh`), Safe-Areas über `env(safe-area-inset-*)`.

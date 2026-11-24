@@ -18,6 +18,9 @@
 // Treffer-Licht: Bei jedem Treffer blitzt ein kleiner Lichtpunkt in der Blockfarbe auf und beleuchtet die Figur an der
 // getroffenen Stelle (Punktlicht, kurz vor der Fläche zur Kamera hin) – dazu ein heller Glanzpunkt. Feste Anzahl
 // Punktlichter (HIT_LIGHTS), reihum benutzt: Lichter hinzufügen/entfernen würde alle Shader neu übersetzen (Ruckler).
+// Kleine Teilchen (Treffer-Spritzer, Funken, Trümmer) sind je Art ein InstancedMesh (instancePool) – vorher war jedes
+// ein eigenes Mesh = eigener Draw-Call (eine Spreng-Explosion allein 72). Funken sind Flächen zur Kamera mit weichem
+// Glanz statt Kugeln, Trümmer und Spritzer einfache Würfel (taumeln – flache Flächen würden von der Seite verschwinden).
 import * as THREE from 'three';
 import { COLORS } from '../core/colors.js';
 import { candyBox, candyMaterial, voxelColor } from './asteroid-view.js';
@@ -98,6 +101,52 @@ function getGlowTexture() {
   return glowTexture;
 }
 
+const POOL_START = 32;   // Instanzen am Anfang (wächst auf die nächste Zweierpotenz)
+
+/**
+ * Viele gleiche Teilchen in einem InstancedMesh: `draw(items, fill)` schreibt jedes Bild alle lebenden Teilchen neu
+ * (fill(item, matrix, color) füllt Lage und Farbe). Wächst bei Bedarf, ein Draw-Call für alle.
+ */
+function instancePool(parent, geometry, material, name) {
+  let mesh = null;
+  const matrix = new THREE.Matrix4();
+  const color = new THREE.Color();
+  return {
+    draw(items, fill) {
+      if (!mesh && !items.length) return;
+      if (!mesh || mesh.instanceMatrix.count < items.length) {
+        const capacity = Math.max(POOL_START, 2 ** Math.ceil(Math.log2(items.length || 1)));
+        if (mesh) {
+          parent.remove(mesh);
+          mesh.dispose();
+        }
+        mesh = new THREE.InstancedMesh(geometry, material, capacity);
+        mesh.name = name;
+        mesh.frustumCulled = false;
+        mesh.setColorAt(0, color.set(0xffffff));
+        parent.add(mesh);
+      }
+      for (let k = 0; k < items.length; k++) {
+        fill(items[k], matrix, color);
+        mesh.setMatrixAt(k, matrix);
+        mesh.setColorAt(k, color);
+      }
+      mesh.count = items.length;
+      mesh.visible = items.length > 0;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceColor.needsUpdate = true;
+    },
+    dispose() {
+      if (mesh) {
+        parent.remove(mesh);
+        mesh.dispose();
+      }
+      geometry.dispose();
+      material.dispose();
+    },
+  };
+}
+
 /** @param {THREE.Scene} scene  @param {THREE.Camera} camera  (Druckwelle zur Kamera, Würfel hinter der Kamera sind weg) */
 export function createEffectsView(scene, camera) {
   const root = new THREE.Group();
@@ -113,28 +162,29 @@ export function createEffectsView(scene, camera) {
       glow.set(colorId, new THREE.MeshBasicMaterial({ color: new THREE.Color(COLORS[colorId]).lerp(new THREE.Color(0xffffff), 0.35), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
     return glow.get(colorId);
   };
-  const particleGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const materials = new Map();
-  const material = colorId => {
-    if (!materials.has(colorId)) materials.set(colorId, new THREE.MeshBasicMaterial({ color: COLORS[colorId] }));
-    return materials.get(colorId);
-  };
+  // Treffer-Spritzer, Funken, Trümmer: je ein InstancedMesh (Farbe je Instanz)
+  const spatters = instancePool(root, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), 'Spritzer');
+  const sparkPool = instancePool(root, new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ map: getGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 'Funken');
+  const debrisPool = instancePool(root, new THREE.BoxGeometry(1, 1, 1), candyMaterial(), 'Trümmer');
+  const position = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+  const scaleVec = new THREE.Vector3();
+  const euler = new THREE.Euler();
   /** shot.id → { mesh, start } */
   const shots = new Map();
   let particles = [];
   /** Sprengsätze: je einer { mesh, box, material, cubes: { position, velocity, quaternion, spin, gone }[], age } */
   let shatters = [];
-  /** Spreng-Explosionen: { flash, ring, life } und ihre Teilchen in `pieces` */
+  /** Spreng-Explosionen: { flash, ring, life } und ihre Teilchen in `sparks` und `debris` */
   let blasts = [];
-  let pieces = [];
+  let sparks = [];
+  let debris = [];
   const flashGeometry = new THREE.SphereGeometry(1, 20, 14);
   const ringGeometry = new THREE.RingGeometry(0.85, 1, 48);
-  const sparkGeometry = new THREE.SphereGeometry(0.09, 8, 6);
-  let debrisGeometry = null;
   const glowColors = [0xffffff, 0xffe14d, BLAST_COLOR];
+  const SPARK_SIZE = 0.42;   // Welteinheiten – Fläche mit weichem Glanz (der helle Kern ist etwa so groß wie früher die Kugel)
   const additive = color => new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  const sparkMaterials = glowColors.map(additive);
-  const debrisMaterials = new Map();
   // Treffer-Lichter: immer da (Intensität 0, wenn frei), reihum vergeben
   const hitLights = Array.from({ length: HIT_LIGHTS }, () => {
     const light = new THREE.PointLight(0xffffff, 0, 1, 2);
@@ -163,15 +213,18 @@ export function createEffectsView(scene, camera) {
       cube.receiveShadow = true;
       cube.setMatrixAt(0, new THREE.Matrix4().makeScale(1e-5, 1e-5, 1e-5));
       cube.setColorAt(0, new THREE.Color());
-      debrisGeometry ??= candyBox(size * 0.55);
       const parts = [
         cube,
         new THREE.Mesh(flashGeometry, additive(0xffffff)),
         new THREE.Mesh(ringGeometry, additive(BLAST_COLOR)),
-        new THREE.Mesh(sparkGeometry, sparkMaterials[0]),
-        new THREE.Mesh(debrisGeometry, candyMaterial()),
         new THREE.Sprite(glintMaterial),
       ];
+      // Teilchen-Pools: je eine winzige Instanz, damit ihre InstancedMeshes (und Shader) schon da sind
+      const tiny = (_, m, c) => {
+        m.makeScale(1e-5, 1e-5, 1e-5).setPosition(camera.position.x, camera.position.y, camera.position.z - 5);
+        c.set(0xffffff);
+      };
+      for (const pool of [spatters, sparkPool, debrisPool]) pool.draw([0], tiny);
       for (const part of parts) {
         if (part !== cube) part.scale.setScalar(1e-5);
         part.position.copy(camera.position).add(new THREE.Vector3(0, 0, -5));
@@ -206,13 +259,11 @@ export function createEffectsView(scene, camera) {
     },
     /** Explosion an `position`; `size` = Voxelgröße */
     burst(position, colorId, size) {
-      for (let k = 0; k < PARTICLES_PER_HIT; k++) {
-        const mesh = new THREE.Mesh(particleGeometry, material(colorId));
-        mesh.position.copy(position);
-        mesh.scale.setScalar(size * 0.3);
-        root.add(mesh);
-        particles.push({ mesh, size, life: PARTICLE_LIFE, velocity: new THREE.Vector3().randomDirection().multiplyScalar(3 + Math.random() * 4) });
-      }
+      for (let k = 0; k < PARTICLES_PER_HIT; k++)
+        particles.push({
+          position: position.clone(), spin: 0, color: COLORS[colorId], size, life: PARTICLE_LIFE,
+          velocity: new THREE.Vector3().randomDirection().multiplyScalar(3 + Math.random() * 4),
+        });
     },
     /**
      * Sprengsatz: Die weggesprengten Voxel fliegen einzeln davon. Startet exakt an ihrer Stelle (`matrixWorld` =
@@ -413,31 +464,24 @@ export function createEffectsView(scene, camera) {
       ring.lookAt(camera.position);
       root.add(flash, ring);
       blasts.push({ flash, ring, life: 0, size });
-      debrisGeometry ??= candyBox(size * 0.55);
       const direction = () => {
         // überwiegend nach außen: Zufallsrichtung, zur Außenrichtung gezogen
         const d = new THREE.Vector3().randomDirection().addScaledVector(outward, 1.3).normalize();
         return d;
       };
       const speed = ([a, b]) => a + Math.random() * (b - a);
-      for (let k = 0; k < BLAST.sparks; k++) {
-        const mesh = new THREE.Mesh(sparkGeometry, sparkMaterials[k % sparkMaterials.length]);
-        mesh.position.copy(position);
-        root.add(mesh);
-        pieces.push({ mesh, velocity: direction().multiplyScalar(speed(BLAST.sparkSpeed)), life: 0, span: 0.45 + Math.random() * 0.45, scale: 1 + Math.random() });
-      }
-      for (let k = 0; k < BLAST.debris; k++) {
-        const color = colorIds[k % colorIds.length];
-        if (!debrisMaterials.has(color)) debrisMaterials.set(color, candyMaterial({ color: COLORS[color] }));
-        const mesh = new THREE.Mesh(debrisGeometry, debrisMaterials.get(color));
-        mesh.position.copy(position);
-        mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-        root.add(mesh);
-        pieces.push({
-          mesh, velocity: direction().multiplyScalar(speed(BLAST.debrisSpeed)), life: 0, span: 1.1 + Math.random() * 0.8, scale: 0.6 + Math.random() * 0.7,
+      for (let k = 0; k < BLAST.sparks; k++)
+        sparks.push({
+          position: position.clone(), color: glowColors[k % glowColors.length],
+          velocity: direction().multiplyScalar(speed(BLAST.sparkSpeed)), life: 0, span: 0.45 + Math.random() * 0.45, scale: 1 + Math.random(),
+        });
+      for (let k = 0; k < BLAST.debris; k++)
+        debris.push({
+          position: position.clone(), color: COLORS[colorIds[k % colorIds.length]], size: size * 0.55,
+          rotation: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6),
+          velocity: direction().multiplyScalar(speed(BLAST.debrisSpeed)), life: 0, span: 1.1 + Math.random() * 0.8, scale: 0.6 + Math.random() * 0.7,
           spin: new THREE.Vector3().randomDirection().multiplyScalar(4 + Math.random() * 6),
         });
-      }
     },
     /** Schuss endet. Verpufft er (Ziel schon weg), zerstiebt er in einem kleinen Funkenregen statt zu verschwinden. */
     removeShot(shot, { fizzle = false, colorId = null } = {}) {
@@ -459,7 +503,7 @@ export function createEffectsView(scene, camera) {
           part.geometry.dispose();
           part.dispose();
         }
-        if (part.material !== glintMaterial && !sparkMaterials.includes(part.material)) part.material.dispose();
+        if (part.material !== glintMaterial) part.material.dispose();
       }
       warm = [];
       const target = new THREE.Vector3();
@@ -522,28 +566,39 @@ export function createEffectsView(scene, camera) {
         b.ring.material.dispose();
         return false;
       });
-      pieces = pieces.filter(p => {
+      // Funken und Trümmer: Luftwiderstand, im letzten Drittel weich wegschrumpfen
+      const fly = p => {
         p.life += dt;
         p.velocity.multiplyScalar(Math.max(0, 1 - BLAST.drag * dt));
-        p.mesh.position.addScaledVector(p.velocity, dt);
-        if (p.spin) {
-          p.mesh.rotation.x += p.spin.x * dt;
-          p.mesh.rotation.y += p.spin.y * dt;
-        }
-        const left = 1 - p.life / p.span;
-        p.mesh.scale.setScalar(Math.max(0.001, p.scale * Math.min(1, left / 0.35)));   // letztes Drittel: weich wegschrumpfen
-        if (left > 0) return true;
-        root.remove(p.mesh);
-        return false;
+        p.position.addScaledVector(p.velocity, dt);
+        p.left = 1 - p.life / p.span;
+        p.shrink = Math.max(0.001, p.scale * Math.min(1, p.left / 0.35));
+        return p.left > 0;
+      };
+      sparks = sparks.filter(fly);
+      debris = debris.filter(p => {
+        p.rotation.x += p.spin.x * dt;
+        p.rotation.y += p.spin.y * dt;
+        return fly(p);
       });
       particles = particles.filter(p => {
         p.life -= dt;
-        p.mesh.position.addScaledVector(p.velocity, dt);
-        p.mesh.rotation.x += dt * 6;
-        p.mesh.scale.setScalar(Math.max(0, (p.size * 0.3 * p.life) / PARTICLE_LIFE));
-        if (p.life > 0) return true;
-        root.remove(p.mesh);
-        return false;
+        p.position.addScaledVector(p.velocity, dt);
+        p.spin += dt * 6;
+        return p.life > 0;
+      });
+      // in die Pools schreiben (ein Draw-Call je Art)
+      sparkPool.draw(sparks, (p, m, c) => {
+        m.compose(p.position, camera.quaternion, scaleVec.setScalar(SPARK_SIZE * p.shrink));   // Fläche zur Kamera
+        c.setHex(p.color);
+      });
+      debrisPool.draw(debris, (p, m, c) => {
+        m.compose(p.position, rotation.setFromEuler(p.rotation), scaleVec.setScalar(p.size * p.shrink));
+        c.setHex(p.color);
+      });
+      spatters.draw(particles, (p, m, c) => {
+        m.compose(p.position, rotation.setFromEuler(euler.set(p.spin, 0, 0)), scaleVec.setScalar(Math.max(0.0001, (p.size * 0.3 * p.life) / PARTICLE_LIFE)));
+        c.setHex(p.color);
       });
     },
     dispose() {
@@ -551,7 +606,8 @@ export function createEffectsView(scene, camera) {
         b.flash.material.dispose();
         b.ring.material.dispose();
       }
-      [flashGeometry, ringGeometry, sparkGeometry, debrisGeometry, ...sparkMaterials, ...debrisMaterials.values()].forEach(o => o?.dispose());
+      [flashGeometry, ringGeometry].forEach(o => o.dispose());
+      for (const pool of [spatters, sparkPool, debrisPool]) pool.dispose();
       for (const sh of shatters) disposeShatter(sh);
       for (const g of glints) g.sprite.material.dispose();
       glintMaterial.dispose();
@@ -559,8 +615,6 @@ export function createEffectsView(scene, camera) {
       shotGeometry.dispose();
       trailGeometry.dispose();
       for (const m of glow.values()) m.dispose();
-      particleGeometry.dispose();
-      for (const m of materials.values()) m.dispose();
     },
   };
 }
