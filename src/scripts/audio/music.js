@@ -116,8 +116,8 @@ export function parseMelody(text) {
 
 const FADE = 0.6;   // s – Aus-/Einblenden beim Stückwechsel
 
-/** @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out */
-export function createMusic(Tone, out) {
+/** @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out  @param {{ lowPower?: boolean }} [options] */
+export function createMusic(Tone, out, { lowPower = false } = {}) {
   const transport = Tone.getTransport();
   const midi = n => Tone.Frequency(n, 'midi').toFrequency();
 
@@ -131,8 +131,9 @@ export function createMusic(Tone, out) {
   // Streicher-Fläche
   const padFilter = new Tone.Filter({ type: 'lowpass', frequency: 1800, Q: 0.4 }).connect(reverb);
   const pad = new Tone.PolySynth(Tone.Synth, {
-    maxPolyphony: 8,
-    oscillator: { type: 'fatsawtooth', count: 3, spread: 22 },
+    maxPolyphony: lowPower ? 6 : 8,
+    // Handy: weniger Oszillatoren je Stimme (Rechenlast, siehe LOW_POWER in sound.js)
+    oscillator: { type: 'fatsawtooth', count: lowPower ? 2 : 3, spread: 22 },
     envelope: { attack: 0.35, decay: 0.3, sustain: 0.8, release: 1.4 },
     volume: -27,
   }).connect(padFilter);
