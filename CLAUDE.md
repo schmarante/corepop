@@ -19,8 +19,8 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   1 `football`, 2 `basketball`, 3 `heart`, 4 `poop` (Häufchen, eigenes Design), **5 `pirateShip`** (Radius 26, ~10 900
   Voxel, Comic-Schiff mit Totenkopf-Segel, Kanonenrohren, Reling, Steuerrad, Hecklaterne, Wimpel, Anker), 6 `rocket`,
   7 `watermelon` (halb, mit Kernen), 8 `cherries` (Kirschpaar), 9 `avocado` (halb, mit Kern), **10 `tank`** (Comic-
-  Panzer, eigenes Design), 11 `popsicle` (Eis am Stiel), 12 `panda` (Kopf), 13 `teddy` (Teddykopf), 14 `laughing`
-  (Lachgesicht mit Tränen – eigenes Design, kein Hersteller-Emoji), **15 `mask`** (eigene Low-Poly-Maske, facettiert;
+  Panzer, eigenes Design), 11 `popsicle` (Eis am Stiel), 12 `panda` (Kopf), 13 `teddy` (Teddykopf), 14 `eyes`
+  (Kulleraugen, schauen zur Seite – eigenes Design, kein Hersteller-Emoji; ersetzt ein Lachgesicht), **15 `mask`** (eigene Low-Poly-Maske, facettiert;
   die Augen sind Spreng-Kristalle an festen Stellen, `model.crystals` – bewusst nicht die Squid-Game-Masken), 16
   `chicken`, 17 `mushroom` (Fliegenpilz), 18 `chest` (Schatztruhe). Gemeinsame
   Formhelfer: `models/shapes.js`. Erfahrung: Bei ~16–20 Voxeln Durchmesser funktionieren nur **markante, kontrastreiche

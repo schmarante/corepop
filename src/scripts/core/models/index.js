@@ -25,7 +25,7 @@ import { chickenModel, SKIN_COLORS as CHICKEN_SKIN } from './chicken.js';
 import { mushroomModel, SKIN_COLORS as MUSHROOM_SKIN } from './mushroom.js';
 import { pandaModel, SKIN_COLORS as PANDA_SKIN } from './panda.js';
 import { cherriesModel, SKIN_COLORS as CHERRIES_SKIN } from './cherries.js';
-import { laughingModel, SKIN_COLORS as LAUGHING_SKIN } from './laughing.js';
+import { eyesModel, SKIN_COLORS as EYES_SKIN } from './eyes.js';
 import { tankModel, SKIN_COLORS as TANK_SKIN } from './tank.js';
 import { maskModel, SKIN_COLORS as MASK_SKIN } from './mask.js';
 
@@ -45,7 +45,7 @@ export const MODELS = {
   pirateShip: { build: pirateShipModel, skinColors: PIRATE_SHIP_SKIN },
   panda: { build: pandaModel, skinColors: PANDA_SKIN },
   cherries: { build: cherriesModel, skinColors: CHERRIES_SKIN },
-  laughing: { build: laughingModel, skinColors: LAUGHING_SKIN },
+  eyes: { build: eyesModel, skinColors: EYES_SKIN },
   tank: { build: tankModel, skinColors: TANK_SKIN },
   mask: { build: maskModel, skinColors: MASK_SKIN },
 };

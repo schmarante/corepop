@@ -36,7 +36,7 @@ export const LEVELS = [
   { model: { type: 'popsicle' }, radius: 9, skin: 1, core: [['y'], ['b', 'g']], spin: 0.35, ships: { 50: 2, 100: 1 }, slots: 3, belt: 0.3, shuffle: 0, crystals: 2, seed: 'corepop-popsicle' },
   { model: { type: 'panda' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-panda' },
   { model: { type: 'teddy' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-teddy' },
-  { model: { type: 'laughing' }, radius: 9, skin: 1, core: [['o'], ['g', 'p'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-laughing' },
+  { model: { type: 'eyes' }, radius: 9, skin: 1, core: [['y'], ['g', 'p'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-eyes' },
   // Boss
   { model: { type: 'mask' }, radius: 24, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 2, boss: true, seed: 'corepop-mask' },
   { model: { type: 'chicken' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 3, seed: 'corepop-chicken' },
