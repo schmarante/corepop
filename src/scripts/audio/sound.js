@@ -16,9 +16,8 @@ const LATE = 400;          // ms – ältere Effekte aus der Ladezeit fallen weg
 const SFX_LEVEL = 0.9;
 const MUSIC_LEVEL = 0.65;
 const SWITCH = 0.4;        // s – Ein-/Ausblenden der Busse
-// Handys: Tone.js startet sonst mit dem kleinsten Audio-Puffer ('interactive'). Neben WebGL kommt die Audio-Berechnung
-// dann nicht hinterher → Aussetzer, Knacksen, gebündelt nachgeholte Töne (klang auf einem Galaxy S20 FE völlig verzerrt).
-// Größerer Puffer + mehr Vorlauf für den Sequenzer; die Effekte kommen dadurch ein paar Hundertstel später.
+// Handys: Tone.js startet sonst mit dem kleinsten Audio-Puffer ('interactive') – neben WebGL zu knapp. Die Musik
+// läuft vorab gerendert (audio/music.js), live sind nur noch die Effekte; 'balanced' hält deren Verzögerung klein.
 export const LOW_POWER = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 let shared = null;
@@ -42,7 +41,7 @@ function createSound() {
     const master = new Tone.Limiter(-1).toDestination();
     const sfxBus = new Tone.Gain(settings.sfx ? SFX_LEVEL : 0).connect(master);
     const musicBus = new Tone.Gain(settings.music ? MUSIC_LEVEL : 0).connect(master);
-    ready = { sfx: createSfx(Tone, sfxBus), music: createMusic(Tone, musicBus, { lowPower: LOW_POWER }), sfxBus, musicBus };
+    ready = { sfx: createSfx(Tone, sfxBus), music: createMusic(Tone, musicBus), sfxBus, musicBus };
     if (settings.music && song) ready.music.play(song);
     const now = performance.now();
     for (const [name, args, at] of pending.splice(0)) if (now - at < LATE) play(name, ...args);
@@ -55,7 +54,7 @@ function createSound() {
       .then(() => {
         if (!ready) {
           // eigener Kontext vor dem Aufbau – alle Knoten und der Transport hängen daran
-          Tone.setContext(new Tone.Context({ latencyHint: LOW_POWER ? 'playback' : 'interactive', lookAhead: LOW_POWER ? 0.15 : 0.05 }));
+          Tone.setContext(new Tone.Context({ latencyHint: LOW_POWER ? 'balanced' : 'interactive', lookAhead: 0.05 }));
           build();
         }
         resume();

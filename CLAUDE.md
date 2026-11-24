@@ -190,6 +190,11 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   (Endkampf in d-Moll, 108 bpm, vier Teile: Galopp-Bass + Pauken + tiefe Blech-Schläge → Blech-Thema → Es-Dur-Akkord
   als Schauder → Höhepunkt mit vollem Schlagzeug, Thema hoch und tief, Becken). Notenschrift in `music.js` („D5:4 r:2 | …“, Längen in
   16teln, jeder Takt = 16 – Test `tests/music.test.js`). Stückwechsel blenden.
+  **Musik wird vorab offline gerendert** (`renderSong`: `Tone.Offline`, 32 kHz, Nachhall vorn eingemischt → nahtlose
+  Schleife) und als `Tone.Player`-Schleife gespielt; danach die übrigen Stücke nacheinander im Hintergrund. Grund: live
+  kostete die Musik ~25 % eines Desktop-Kerns (vor allem JS je Note) – auf einem Galaxy S20 FE rauschte der Ton neben
+  WebGL, und bei Schüssen fiel er ganz aus. Gemessen per Offline-Render in headless Chromium (DevTools-Pipe).
+  Live bleiben nur die Effekte. Handys (`pointer: coarse`): `latencyHint: 'balanced'`.
 - **Effekte** (`sfx.js`): Laser (Pulswellen-„Pju“, gedrosselt), Treffer-Plopp mit Tonhöhe je Blockfarbe (pentatonisch),
   Explosion (Rauschen + Bass, Supernova größer), Start (Wusch; Spreng-Flieger mit Warn-Piepsen), Abflug, Absturz vom
   Band (Rutschpfeife), blockiert („oh-oh“, Ereignis `blocked`), „geht nicht“, Entschärfen, Specials, Sterne im

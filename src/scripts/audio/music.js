@@ -8,6 +8,7 @@
 //
 // Ein Sequenzer (16tel-Schleife) liest die Stücke: Akkorde je Takt, Bass- und Schlagzeugmuster je Takt
 // (16 Zeichen; Listen laufen reihum), Melodien als Notenfolge „D5:4 G5:2 r:2 …“ (Länge in 16teln, r = Pause, | nur zur Lesbarkeit).
+// Jedes Stück wird einmal offline gerendert (Rechenlast, siehe createMusic) und dann als Schleife abgespielt.
 // Wechsel zwischen Stücken: kurz ausblenden, umschalten, einblenden – nichts bricht hart ab.
 
 /** n gleiche Takte */
@@ -114,26 +115,25 @@ export function parseMelody(text) {
   return out;
 }
 
-const FADE = 0.6;   // s – Aus-/Einblenden beim Stückwechsel
+const FADE = 0.6;          // s – Aus-/Einblenden beim Stückwechsel
+const TAIL = 3;           // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
+const RENDER_RATE = 32000; // Hz – reicht für die Synths, spart Rechenzeit und Speicher
 
-/** @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out  @param {{ lowPower?: boolean }} [options] */
-export function createMusic(Tone, out, { lowPower = false } = {}) {
-  const transport = Tone.getTransport();
+/** Instrumente (Synths, Schlagzeug, Hall, Echo) in den aktuellen Tone-Kontext bauen;
+ *  `play(song, leads, step, time)` spielt einen 16tel-Schritt */
+async function createBand(Tone, out) {
   const midi = n => Tone.Frequency(n, 'midi').toFrequency();
 
-  // Lautstärke des Stücks (Wechsel) – die Einstellung „Musik an/aus“ regelt der Bus dahinter
-  const songGain = new Tone.Gain(0).connect(out);
-  const reverb = new Tone.Reverb({ decay: 2.8, wet: 0.3 }).connect(songGain);
+  const reverb = new Tone.Reverb({ decay: 2.8, wet: 0.3 }).connect(out);
   const echo = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.28, wet: 0.22 }).connect(reverb);
-  const drumBus = new Tone.Gain(1).connect(songGain);
+  const drumBus = new Tone.Gain(1).connect(out);
   drumBus.connect(reverb);
 
   // Streicher-Fläche
   const padFilter = new Tone.Filter({ type: 'lowpass', frequency: 1800, Q: 0.4 }).connect(reverb);
   const pad = new Tone.PolySynth(Tone.Synth, {
-    maxPolyphony: lowPower ? 6 : 8,
-    // Handy: weniger Oszillatoren je Stimme (Rechenlast, siehe LOW_POWER in sound.js)
-    oscillator: { type: 'fatsawtooth', count: lowPower ? 2 : 3, spread: 22 },
+    maxPolyphony: 8,
+    oscillator: { type: 'fatsawtooth', count: 3, spread: 22 },
     envelope: { attack: 0.35, decay: 0.3, sustain: 0.8, release: 1.4 },
     volume: -27,
   }).connect(padFilter);
@@ -163,7 +163,7 @@ export function createMusic(Tone, out, { lowPower = false } = {}) {
     envelope: { attack: 0.004, decay: 0.2, sustain: 0.45, release: 0.12 },
     filterEnvelope: { attack: 0.002, decay: 0.16, sustain: 0.2, release: 0.1, baseFrequency: 110, octaves: 3.2 },
     volume: -15,
-  }).connect(songGain);
+  }).connect(out);
   // Schlagzeug
   const kick = new Tone.MembraneSynth({ pitchDecay: 0.045, octaves: 6, envelope: { attack: 0.001, decay: 0.32, sustain: 0, release: 0.1 }, volume: -9 }).connect(drumBus);
   const snareFilter = new Tone.Filter({ type: 'highpass', frequency: 1300 }).connect(drumBus);
@@ -175,86 +175,139 @@ export function createMusic(Tone, out, { lowPower = false } = {}) {
   const crash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.6, sustain: 0 }, volume: -22 }).connect(crashFilter);
 
   const voices = { brass, pulse };
-  let song = null;
-  let leads = new Map();   // Schritt im Stück → [{ midi, length, voice }] (mehrere Stimmen gleichzeitig möglich)
-  let step = 0;
-  let switching = null;
+  await reverb.ready;
 
-  const sequencer = new Tone.Loop(time => {
-    if (!song) return;
+  return (song, leads, step, time) => {
     const sixteenth = 60 / song.bpm / 4;
-    const total = song.bars * 16;
-    const s = step % total;
+    const s = step % (song.bars * 16);
     const bar = Math.floor(s / 16);
     const inBar = s % 16;
-    step++;
     const chord = CHORDS[song.chords[bar % song.chords.length]];
     const pick = (list, b = bar) => list[b % list.length];
-    try {
-      // Schlagzeug
-      for (const [name, patterns] of Object.entries(song.drums)) {
-        if (pick(patterns)[inBar] !== 'x') continue;
-        if (name === 'kick') kick.triggerAttackRelease('C1', 0.2, time);
-        else if (name === 'snare') snare.triggerAttackRelease(0.12, time, pick(patterns)[inBar - 1] === 'x' ? 0.6 : 1);   // Wirbel leiser
-        else if (name === 'hat') hat.triggerAttackRelease(0.03, time, inBar % 4 === 0 ? 1 : 0.6);
-        else if (name === 'tom') tom.triggerAttackRelease(midi(chord.root - 12 + (inBar > 12 ? 7 : 0)), 0.5, time, pick(patterns)[inBar - 1] === 'x' ? 0.7 : 1);
-        else if (name === 'crash') crash.triggerAttackRelease(1.5, time);
-      }
-      // Bass
-      const b = pick(song.bass)[inBar];
-      if (b && b !== '.') {
-        const note = chord.root + (b === 'O' ? 12 : b === 'F' ? 7 : 0);
-        bass.triggerAttackRelease(midi(note), sixteenth * song.bassLength * 0.9, time, inBar % 4 === 0 ? 1 : 0.75);
-      }
-      // Streicher: je Takt neu angeschlagen
-      if (song.pad && inBar === 0) pad.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15.5, time, 0.7);
-      // Blechstöße und tiefe Blech-Schläge (Grundton in Oktaven) – Boss
-      if (song.stabs && pick(song.stabs)[inBar] === 'x') brass.triggerAttackRelease(chord.pad.map(midi), sixteenth * 1.6, time, 0.5);
-      if (song.doom && pick(song.doom)[inBar] === 'x') brass.triggerAttackRelease([chord.root, chord.root + 12].map(midi), sixteenth * 6, time, 0.9);
-      // Arpeggio: Akkordtöne eine Oktave höher, auf und ab
-      if (song.arp) {
-        const tones = [...chord.pad, chord.pad[0] + 12].map(n => n + 12);
-        const k = inBar % 6;
-        arp.triggerAttackRelease(midi(tones[k < 4 ? k : 6 - k]), sixteenth * 0.8, time, 0.8);
-      }
-      // Melodie
-      for (const lead of leads.get(s) ?? []) voices[lead.voice].triggerAttackRelease(midi(lead.midi), sixteenth * lead.length * 0.92, time, 0.85);
-    } catch {
-      // Klang darf das Spiel nie stören
+    // Schlagzeug
+    for (const [name, patterns] of Object.entries(song.drums)) {
+      if (pick(patterns)[inBar] !== 'x') continue;
+      if (name === 'kick') kick.triggerAttackRelease('C1', 0.2, time);
+      else if (name === 'snare') snare.triggerAttackRelease(0.12, time, pick(patterns)[inBar - 1] === 'x' ? 0.6 : 1);   // Wirbel leiser
+      else if (name === 'hat') hat.triggerAttackRelease(0.03, time, inBar % 4 === 0 ? 1 : 0.6);
+      else if (name === 'tom') tom.triggerAttackRelease(midi(chord.root - 12 + (inBar > 12 ? 7 : 0)), 0.5, time, pick(patterns)[inBar - 1] === 'x' ? 0.7 : 1);
+      else if (name === 'crash') crash.triggerAttackRelease(1.5, time);
     }
-  }, '16n').start(0);
+    // Bass
+    const b = pick(song.bass)[inBar];
+    if (b && b !== '.') {
+      const note = chord.root + (b === 'O' ? 12 : b === 'F' ? 7 : 0);
+      bass.triggerAttackRelease(midi(note), sixteenth * song.bassLength * 0.9, time, inBar % 4 === 0 ? 1 : 0.75);
+    }
+    // Streicher: je Takt neu angeschlagen
+    if (song.pad && inBar === 0) pad.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15.5, time, 0.7);
+    // Blechstöße und tiefe Blech-Schläge (Grundton in Oktaven) – Boss
+    if (song.stabs && pick(song.stabs)[inBar] === 'x') brass.triggerAttackRelease(chord.pad.map(midi), sixteenth * 1.6, time, 0.5);
+    if (song.doom && pick(song.doom)[inBar] === 'x') brass.triggerAttackRelease([chord.root, chord.root + 12].map(midi), sixteenth * 6, time, 0.9);
+    // Arpeggio: Akkordtöne eine Oktave höher, auf und ab
+    if (song.arp) {
+      const tones = [...chord.pad, chord.pad[0] + 12].map(n => n + 12);
+      const k = inBar % 6;
+      arp.triggerAttackRelease(midi(tones[k < 4 ? k : 6 - k]), sixteenth * 0.8, time, 0.8);
+    }
+    // Melodie
+    for (const lead of leads.get(s) ?? []) voices[lead.voice].triggerAttackRelease(midi(lead.midi), sixteenth * lead.length * 0.92, time, 0.85);
+  };
+}
 
-  function load(name) {
-    song = SONGS[name];
-    leads = new Map();
-    for (const { bar, voice, notes } of song.leads)
-      for (const n of parseMelody(notes)) {
-        const at = bar * 16 + n.step;
-        leads.set(at, [...(leads.get(at) ?? []), { ...n, voice }]);
-      }
-    step = 0;
+/** Melodien eines Stücks: Schritt → [{ midi, length, voice }] (mehrere Stimmen gleichzeitig möglich) */
+function leadsOf(song) {
+  const leads = new Map();
+  for (const { bar, voice, notes } of song.leads)
+    for (const n of parseMelody(notes)) {
+      const at = bar * 16 + n.step;
+      leads.set(at, [...(leads.get(at) ?? []), { ...n, voice }]);
+    }
+  return leads;
+}
+
+/** Länge einer Schleife in s */
+export const loopLength = song => (song.bars * 16 * 60) / song.bpm / 4;
+
+/** Stück offline in einen Puffer rendern, nahtlos schleifbar: der Nachhall hinter dem Ende wird vorn eingemischt */
+async function renderSong(Tone, song) {
+  const length = loopLength(song);
+  const leads = leadsOf(song);
+  const steps = song.bars * 16;
+  const sixteenth = length / steps;
+  const rendered = await Tone.Offline(async ({ transport }) => {
+    const play = await createBand(Tone, Tone.getDestination());
+    let step = 0;
     transport.bpm.value = song.bpm;
+    transport.scheduleRepeat(time => step < steps && play(song, leads, step++, time), sixteenth, 0);
+    transport.start(0);
+  }, length + TAIL, 2, RENDER_RATE);
+  const audio = rendered.get();
+  const n = Math.round(length * RENDER_RATE);
+  const loop = Tone.getContext().createBuffer(2, n, RENDER_RATE);
+  for (let c = 0; c < 2; c++) {
+    const src = audio.getChannelData(c);
+    const dst = loop.getChannelData(c);
+    dst.set(src.subarray(0, n));
+    for (let i = n; i < src.length; i++) dst[i - n] += src[i];
   }
+  return new Tone.ToneAudioBuffer(loop);
+}
+
+/**
+ * Musik als vorab gerenderte Schleifen: Die Synths kosten in Echtzeit sehr viel Rechenzeit (Desktop ~25 % eines
+ * Kerns) – auf Handys reichte das neben WebGL nicht, der Ton rauschte, knackste und fiel aus. Gerendert wird einmal
+ * im Hintergrund (Offline-Kontext, braucht keine Geste), danach spielt nur noch ein Puffer.
+ * @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out
+ */
+export function createMusic(Tone, out) {
+  const buffers = new Map();   // Name → Promise<ToneAudioBuffer>
+  let queue = Promise.resolve();
+  /** Rendern nacheinander (nie zwei gleichzeitig – Rechenlast) */
+  const render = name => {
+    if (!buffers.has(name)) {
+      const job = queue.then(() => renderSong(Tone, SONGS[name]));
+      queue = job.catch(() => {});
+      buffers.set(name, job);
+      job.catch(() => buffers.delete(name));   // später nochmal versuchen
+    }
+    return buffers.get(name);
+  };
 
   let current = null;
+  let player = null;   // { node, gain }
+
+  const fadeOut = old => {
+    if (!old) return;
+    old.gain.gain.cancelScheduledValues(Tone.now());
+    old.gain.gain.rampTo(0, FADE * 0.8);
+    setTimeout(() => {
+      old.node.stop();
+      old.node.dispose();
+      old.gain.dispose();
+    }, FADE * 1000 + 100);
+  };
+
   return {
-    /** Stück wechseln (blendet aus und wieder ein); null = Stille */
+    /** Stück wechseln (blendet aus und wieder ein); null = Stille. Ist es noch nicht gerendert, setzt es danach ein. */
     play(name) {
       if (name === current) return;
       current = name;
-      clearTimeout(switching);
-      const now = Tone.now();
-      songGain.gain.cancelScheduledValues(now);
-      songGain.gain.rampTo(0, FADE * 0.8, now);
-      switching = setTimeout(() => {
-        if (!current) {
-          transport.pause();
-          return;
-        }
-        load(current);
-        if (transport.state !== 'started') transport.start('+0.05');
-        songGain.gain.rampTo(1, FADE * 2);
-      }, (transport.state === 'started' ? FADE : 0) * 1000);
+      fadeOut(player);
+      player = null;
+      if (!name) return;
+      render(name).then(buffer => {
+        if (current !== name || player) return;
+        const gain = new Tone.Gain(0).connect(out);
+        const node = new Tone.Player({ url: buffer, loop: true }).connect(gain);
+        node.start(Tone.now() + 0.05);
+        gain.gain.rampTo(1, FADE * 2);
+        player = { node, gain };
+        // die übrigen Stücke nacheinander vorbereiten – Wechsel (Menü → Spiel → Boss) gehen dann ohne Pause
+        for (const other of Object.keys(SONGS)) render(other);
+      }, () => {});
     },
+    /** im Hintergrund vorbereiten */
+    prepare: render,
   };
 }
