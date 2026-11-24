@@ -7,6 +7,8 @@
 //   Stufe 1  ohne Sonnenschatten (zweiter Geometrie-Durchlauf + Schattenfilter je Pixel fallen weg)
 //   Stufe 2  Pixel-Ratio 1,5 und gröber gerundete Würfel (108 statt 300 Dreiecke – gilt ab dem nächsten Level)
 //   Stufe 3  Pixel-Ratio 1
+// Standard ist Stufe 3 (DEFAULT_TIER, Wunsch des Users: flüssig auf allen Handys) – die Automatik kann von dort nur
+// noch nicht weiter herunter, greift also erst, wenn der Standard höher gesetzt wird.
 // Zum Testen: `?quality=0…3` in der Adresse setzt die Stufe fest (keine Automatik).
 import { storedTier, storeTier } from '../store/quality.js';
 import { loopInterval } from './frame-loop.js';
@@ -27,7 +29,9 @@ const forced = (() => {
   }
 })();
 
-let tier = forced ?? Math.min(TIERS.length - 1, storedTier());
+const DEFAULT_TIER = 3;
+// gemerkte Stufe gilt nur, wenn sie niedriger (schneller) ist als der Standard
+let tier = forced ?? Math.min(TIERS.length - 1, Math.max(DEFAULT_TIER, storedTier()));
 const listeners = new Set();
 
 /** aktuelle Einstellungen */

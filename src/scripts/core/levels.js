@@ -22,8 +22,8 @@
 // Je Figur ein Level (Übersicht: /dev/modelle/), Bosse auf 5, 10 und 15.
 export const LEVELS = [
   { model: { type: 'football' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 5, belt: 0.25, shuffle: 0, crystals: 2, seed: 'corepop-football' },
-  { model: { type: 'basketball' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 100: 2, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.9, crystals: 2, seed: 'corepop-basketball' },
-  { model: { type: 'heart' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['o']], spin: 0.35, ships: { 100: 1 }, slots: 4, belt: 0.25, shuffle: 1.2, crystals: 2, seed: 'corepop-heart' },
+  { model: { type: 'heart' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['o']], spin: 0.35, ships: { 100: 2, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.9, crystals: 2, seed: 'corepop-heart' },
+  { model: { type: 'basketball' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.25, shuffle: 0.9, crystals: 2, seed: 'corepop-basketball' },
   { model: { type: 'poop' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-poop' },
   // Boss
   { model: { type: 'pirateShip' }, radius: 26, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-pirate-ship' },

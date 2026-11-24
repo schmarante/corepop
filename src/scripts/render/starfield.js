@@ -4,8 +4,7 @@
 // - Sterne kommen aus der Tiefe auf uns zu und fließen am Bildrand an der Kamera vorbei – nichts poppt: neue Sterne
 //   blenden in der Tiefe ein, und ersetzt wird ein Stern erst, wenn er das Bild verlassen hat. Damit jeder Stern das
 //   Bild wirklich verlässt, entsteht keiner genau in der Mitte (sonst bliebe er dort hängen und würde nur größer).
-// - Chromatische Aberration zum Rand hin: Rot-, Grün- und Blauanteil werden radial gegeneinander versetzt
-//   (Rot nach außen, Blau nach innen), je weiter außen, desto stärker – wie bei einer echten Linse.
+// - Weiße Sterne ohne Farbversatz (chromatische Aberration zum Rand hin wieder entfernt – Wunsch des Users).
 // - Bei „Bewegung reduzieren“ ein stehender Sternenhimmel.
 // - Boss-Stimmung (`<html data-boss="1">`, gesetzt vom Spielmodus in Boss-Levels): langsam wabernder Plasma-Nebel in
 //   Magenta, Violett und Türkis hinter den Sternen, die Sterne glühen farbig, ziehen Leuchtspuren und fliegen etwas
@@ -17,7 +16,6 @@ const SPEED = 0.06;          // Annäherung pro Sekunde (Tiefe 1 → 0)
 const FADE_IN = 0.12;        // Tiefenbereich, in dem ein neuer Stern einblendet
 const MIN_OFFSET = 0.06;     // kein Stern startet näher an der Bildmitte (Anteil der halben Bildbreite bei Tiefe 1)
 const SPREAD = 0.25;         // wie weit die Sterne bei Tiefe 1 auseinanderliegen
-const ABERRATION = 3.2;      // px Versatz der Farbanteile ganz am Rand (bei großen Sternen etwas mehr)
 const BRIGHT_SHARE = 0.04;   // Anteil besonders heller, etwas größerer Sterne
 const MAX_DPR = 1.5;         // Sterne sind weiche Punkte – volle Retina-Auflösung kostet nur Akku
 // Boss-Stimmung
@@ -98,12 +96,9 @@ export function startStarfield(canvas) {
 
   function draw() {
     ctx.clearRect(0, 0, w, h);
-    ctx.globalCompositeOperation = 'lighter';   // Farbanteile addieren sich wieder zu Weiß, wo sie sich decken
+    ctx.globalCompositeOperation = 'lighter';   // Licht addiert sich (Nebel, Leuchtspuren, Sterne)
     if (mood > 0.01) drawNebula();
-    const cx = w / 2;
-    const cy = h / 2;
     const scale = Math.max(w, h) * 0.5;
-    const edge = Math.hypot(cx, cy);
     for (const s of stars) {
       const [px, py] = project(s, scale);
       const near = 1 - Math.min(1, s.z);   // 0 hinten … 1 ganz nah
@@ -111,12 +106,6 @@ export function startStarfield(canvas) {
       const alpha = Math.min(1, (0.2 + near * 0.8) * s.light * fadeIn);
       if (alpha <= 0.01) continue;
       const size = s.size * (0.7 + near * 1.5);
-      // chromatische Aberration: radialer Versatz, quadratisch zum Rand hin – höchstens knapp die halbe Sterngröße,
-      // damit der Kern weiß bleibt und nur die Ränder farbig werden (statt in drei bunte Punkte zu zerfallen)
-      const dx = px - cx;
-      const dy = py - cy;
-      const r = Math.min(1.4, Math.hypot(dx, dy) / edge);
-      const offset = Math.min(size * 0.45, ABERRATION * r * r);
       ctx.globalAlpha = alpha;
       // Boss: Stern glüht farbig und zieht eine Leuchtspur zur Mitte hin (dorthin, wo er herkommt)
       if (mood > 0.01) {
@@ -137,20 +126,8 @@ export function startStarfield(canvas) {
         ctx.fillRect(px - halo / 2, py - halo / 2, halo, halo);
         ctx.globalAlpha = alpha;
       }
-      if (offset < 0.35) {
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(px - size / 2, py - size / 2, size, size);
-        continue;
-      }
-      const len = Math.hypot(dx, dy) || 1;
-      const ox = (dx / len) * offset;
-      const oy = (dy / len) * offset;
-      ctx.fillStyle = '#ff0000';
-      ctx.fillRect(px + ox - size / 2, py + oy - size / 2, size, size);
-      ctx.fillStyle = '#00ff00';
+      ctx.fillStyle = '#fff';
       ctx.fillRect(px - size / 2, py - size / 2, size, size);
-      ctx.fillStyle = '#0000ff';
-      ctx.fillRect(px - ox - size / 2, py - oy - size / 2, size, size);
     }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -174,7 +151,7 @@ export function startStarfield(canvas) {
     time += dt;
     mood += ((bossWanted() ? 1 : 0) - mood) * (1 - Math.exp(-MOOD_RATE * dt));
     const scale = Math.max(w, h) * 0.5;
-    const margin = 20;   // px außerhalb des Bildes, bevor ein Stern ersetzt wird (inkl. Farbversatz)
+    const margin = 20;   // px außerhalb des Bildes, bevor ein Stern ersetzt wird
     for (const s of stars) {
       s.z -= SPEED * dt * (0.6 + (1 - Math.min(1, s.z))) * (1 + BOSS_SPEED * mood);   // nahe Sterne etwas schneller
       const [px, py] = project(s, scale);
