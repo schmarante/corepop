@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { startFrameLoop, GAME_FPS } from './frame-loop.js';
 import { quality, onQualityChange, createQualityMeter } from './quality.js';
+import { attachShipBatches } from './ship-model.js';
 
 const FOV = 50;
 const MIN_HALF_WIDTH = 6.2;   // so viel Welt muss links und rechts der Mitte sichtbar sein (Hangar-Reihe mit 5 Plattformen)
@@ -50,6 +51,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
   scene.environment = environment;
   scene.environmentIntensity = 0.45;
 
+  const detachShips = attachShipBatches(scene);   // Flieger gesammelt zeichnen (ship-model.js)
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 500);
   scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1840, 0.9));
   const sun = new THREE.DirectionalLight(0xffffff, 2.2);
@@ -168,6 +170,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     dispose() {
       loop?.stop();
       stopQuality();
+      detachShips();
       observer.disconnect();
       environment.dispose();
       renderer.dispose();

@@ -7,6 +7,9 @@
 // getroffener Voxel blitzt hell auf und schrumpft weg.
 // Leistung: Nur von außen sichtbare Voxel werden gezeichnet (auch schräg sichtbare an Stufen). Ein innerer Voxel
 // kommt dazu, sobald ein Nachbar verschwindet – während dieser noch wegschrumpft und ihn verdeckt.
+// Im InstancedMesh stehen nur diese Voxel (dicht gepackt, `mesh.count`): Verborgene mit Null-Skalierung mitzuschleppen
+// kostete den Vertex-Shader beim Boss über doppelt so viel (≈ 10 900 statt ≈ 4 600 Würfel). Voxel ↔ Instanz-Platz über
+// `slotOf`/`voxelAt`; wird ein Voxel frei, rückt der letzte Platz in die Lücke (alle Instanz-Attribute mit).
 // Spezial-Würfel (Riss-Kristalle, sprengen ein Bruchstück ab): eigener Candy-Würfel in seiner Farbe, der pulsierend
 // hell aufleuchtet und leicht atmet – deutlich als „besonders“ erkennbar, die Farbe bleibt aber lesbar. Sie liegen in
 // inneren Schichten; damit man sie trotzdem früh entdeckt (und den Spreng-Flieger behält), blinkt ein Leuchtfleck durch
@@ -28,7 +31,6 @@ const SWAY_Y = [[0.25, 0.19, 2.6]];
 const waves = (list, t) => list.reduce((sum, [amp, freq, phase]) => sum + amp * Math.sin(t * freq + phase), 0);
 const GAP = 1;           // Würfel liegen bündig aneinander – die gerundeten Kanten ergeben feine Rillen
 const BEVEL = 0.16;      // Rundung der Kanten (Anteil der Voxelgröße)
-const HIDDEN = new THREE.Matrix4().makeScale(0, 0, 0);
 const PULSE = 5;         // rad/s – Puls der Spezial-Würfel
 const PULSE_WHITE = 0.55; // Anteil Weiß auf dem Höhepunkt des Pulses
 const GLITCH_EVERY = [1, 2];   // s zwischen zwei Glitches (zufällig) – nur Boss-Level
@@ -88,20 +90,61 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   tilt.name = 'Figur';   // Namen nur für den Dev-Profiler
   scene.add(tilt);
 
-  const mesh = new THREE.InstancedMesh(candyBox(size), withVoxelAo(candyMaterial(), size * GAP), asteroid.voxels.length);
+  const total = asteroid.voxels.length;
+  const mesh = new THREE.InstancedMesh(candyBox(size), withVoxelAo(candyMaterial(), size * GAP), total);
   const matrix = new THREE.Matrix4();
   const color = new THREE.Color();
   const place = v => matrix.makeTranslation(v.x * size, v.y * size, v.z * size);
-  /** Voxel-Index → wird gezeichnet */
-  const shown = new Uint8Array(asteroid.voxels.length);
-  for (const v of asteroid.voxels) {
-    const visible = v.alive && !v.crystal && visibleFromOutside(asteroid, v);
-    shown[v.i] = visible ? 1 : 0;
-    mesh.setMatrixAt(v.i, visible ? place(v) : HIDDEN);
-    mesh.setColorAt(v.i, voxelColor(v, color));
+  /** Voxel-Index → wurde sichtbar (bleibt 1, auch wenn er danach weggeschossen wird) */
+  const shown = new Uint8Array(total);
+  /** Voxel-Index → Instanz-Platz (-1 = nicht im Mesh) und zurück */
+  const slotOf = new Int32Array(total).fill(-1);
+  const voxelAt = new Int32Array(total);
+  let ao = null;
+  let ghosts = [];   // Glitch-Geister (Boss), teilen sich die Instanz-Lagen – siehe unten
+  mesh.count = 0;
+  mesh.setColorAt(0, color.set(0xffffff));   // legt instanceColor an
+
+  /** Voxel ins Mesh aufnehmen (letzter Platz) */
+  function addInstance(v) {
+    if (slotOf[v.i] >= 0) return;
+    const s = mesh.count++;
+    slotOf[v.i] = s;
+    voxelAt[s] = v.i;
+    mesh.setMatrixAt(s, place(v));
+    mesh.setColorAt(s, voxelColor(v, color));
+    ao?.place(v.i, s);
+    syncCount();
   }
+  /** Voxel aus dem Mesh nehmen: der letzte Platz rückt in die Lücke (Lage, Farbe, AO – alle Instanz-Attribute) */
+  function dropInstance(i) {
+    const s = slotOf[i];
+    if (s < 0) return;
+    const last = --mesh.count;
+    if (s !== last) {
+      const moved = voxelAt[last];
+      const attributes = [mesh.instanceMatrix, mesh.instanceColor, ...Object.values(mesh.geometry.attributes).filter(a => a.isInstancedBufferAttribute)];
+      for (const a of attributes) {
+        a.array.copyWithin(s * a.itemSize, last * a.itemSize, (last + 1) * a.itemSize);
+        a.needsUpdate = true;
+      }
+      slotOf[moved] = s;
+      voxelAt[s] = moved;
+    }
+    slotOf[i] = -1;
+    syncCount();
+  }
+  const syncCount = () => {
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.instanceColor.needsUpdate = true;
+    for (const ghost of ghosts) ghost.count = mesh.count;
+  };
+
+  for (const v of asteroid.voxels) if (v.alive && !v.crystal && visibleFromOutside(asteroid, v)) shown[v.i] = 1;
   // Mulden, Krater und Stufen dunkler; Krater-Inneres sieht wenig Himmel (voxel-ao.js)
-  const ao = attachVoxelAo(mesh, asteroid, { range: Math.round(4 + level.radius * 0.25), visible: i => shown[i] === 1 });
+  ao = attachVoxelAo(mesh, asteroid, { range: Math.round(4 + level.radius * 0.25), visible: i => shown[i] === 1, slotOf: i => slotOf[i] });
+  for (const v of asteroid.voxels) if (shown[v.i]) addInstance(v);
+  mesh.frustumCulled = false;   // ein Körper in der Bildmitte – und die Hülle (boundingSphere) änderte sich mit count
   mesh.name = 'Figur-Würfel';
   mesh.castShadow = true;      // Sonnenschatten (stage.js): Kraterränder und Erhebungen werfen Schatten auf die Figur
   mesh.receiveShadow = true;
@@ -110,10 +153,11 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   // Glitch (Boss-Level): alle paar Sekunden zuckt die Figur kurz – springt ruckartig zur Seite, zwei Farbgeister
   // (Magenta, Türkis) flackern versetzt auf. Die Geister teilen sich Geometrie und Würfel-Lagen mit der Figur
   // (dieselbe instanceMatrix) und folgen ihrer Welt-Matrix mit einem Versatz quer zum Bild.
-  const ghosts = glitch && !matchMedia('(prefers-reduced-motion: reduce)').matches
+  ghosts = glitch && !matchMedia('(prefers-reduced-motion: reduce)').matches
     ? [0xff2bd6, 0x2bd6ff].map(color => {
         const ghost = new THREE.InstancedMesh(mesh.geometry, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), asteroid.voxels.length);
         ghost.instanceMatrix = mesh.instanceMatrix;
+        ghost.count = mesh.count;
         ghost.matrixAutoUpdate = false;
         ghost.matrixWorldAutoUpdate = false;   // Welt-Matrix setzen wir selbst (Figur + Versatz)
         ghost.name = 'Glitch-Geist';
@@ -133,15 +177,12 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
 
   /** Nachbarn (auch diagonal), die jetzt von außen sichtbar sind, ab sofort zeichnen */
   function revealAround(v) {
-    let changed = false;
     for (const [dx, dy, dz] of NEIGHBORS_26) {
       const n = asteroid.grid.get(voxelKey(v.x + dx, v.y + dy, v.z + dz));
       if (!n || shown[n.i] || n.crystal) continue;
       shown[n.i] = 1;
-      mesh.setMatrixAt(n.i, place(n));
-      changed = true;
+      addInstance(n);
     }
-    if (changed) mesh.instanceMatrix.needsUpdate = true;
   }
 
   /** voxel.i → { v, group, gem, glow, base, glowLevel, dying? } – gem = der pulsierende Würfel, glow = Leuchtfleck */
@@ -303,15 +344,17 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
           const v = asteroid.voxels[i];
           const p = (t + dt) / SHRINK;
           if (p >= 1) {
-            mesh.setMatrixAt(i, HIDDEN);
+            dropInstance(i);
             dying.delete(i);
             continue;
           }
           dying.set(i, t + dt);
+          const s = slotOf[i];
+          if (s < 0) continue;
           // erst kurz aufblähen und weiß aufblitzen, dann zusammenschrumpfen
           const k = p < 0.25 ? 1 + p * 0.5 : 1.125 * (1 - easeInCubic((p - 0.25) / 0.75));
-          mesh.setMatrixAt(i, matrix.compose(position.set(v.x * size, v.y * size, v.z * size), quaternion, scaleVec.setScalar(Math.max(0.001, k))));
-          mesh.setColorAt(i, voxelColor(v, color).lerp(WHITE, FLASH * (1 - p)));
+          mesh.setMatrixAt(s, matrix.compose(position.set(v.x * size, v.y * size, v.z * size), quaternion, scaleVec.setScalar(Math.max(0.001, k))));
+          mesh.setColorAt(s, voxelColor(v, color).lerp(WHITE, FLASH * (1 - p)));
         }
         mesh.instanceMatrix.needsUpdate = true;
         mesh.instanceColor.needsUpdate = true;
@@ -330,7 +373,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
         for (const [i, t] of recoloring) {
           const p = Math.min(1, (t + dt) / RECOLOR);
           const v = asteroid.voxels[i];
-          if (v.alive && shown[i]) mesh.setColorAt(i, voxelColor(v, color).lerp(WHITE, 0.8 * (1 - p)));
+          if (v.alive && slotOf[i] >= 0) mesh.setColorAt(slotOf[i], voxelColor(v, color).lerp(WHITE, 0.8 * (1 - p)));
           if (p >= 1) recoloring.delete(i);
           else recoloring.set(i, t + dt);
         }
@@ -483,8 +526,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
      */
     remove(v, { detach = false } = {}) {
       if (detach) {
-        mesh.setMatrixAt(v.i, HIDDEN);
-        mesh.instanceMatrix.needsUpdate = true;
+        dropInstance(v.i);
         dying.delete(v.i);
         if (crystals.has(v.i)) removeCrystal(v.i);
       } else if (crystals.has(v.i)) crystals.get(v.i).dying = 0;
@@ -498,12 +540,9 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
     },
     /** Kristall entschärft (game.js → defuse): der Spezial-Würfel schrumpft weg, darunter liegt ein normaler Block */
     defuse(v) {
-      mesh.setColorAt(v.i, voxelColor(v, color));
-      mesh.instanceColor.needsUpdate = true;
       if (v.alive && visibleFromOutside(asteroid, v)) {
         shown[v.i] = 1;
-        mesh.setMatrixAt(v.i, place(v));
-        mesh.instanceMatrix.needsUpdate = true;
+        addInstance(v);   // in der Farbe der Schicht (game.js hat v.color schon umgestellt)
       }
       if (crystals.has(v.i)) crystals.get(v.i).dying = 0;
     },

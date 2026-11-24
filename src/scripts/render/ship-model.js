@@ -5,6 +5,11 @@
 //   paper   – gefalteter Papierflieger aus flachen Dreiecksfacetten, hellere Faltkante, kleine Flamme
 //   rocket  – Retro-Rakete: hoher spitzer Rumpf, drei Flossen, rundes Bullauge, große Flamme
 // Darunter jeweils eine Blase mit der Munition.
+//
+// Gezeichnet wird gesammelt (attachShipBatches, von stage.js an jede Szene gehängt): Die Teile eines Fliegers bleiben
+// als unsichtbare Platzhalter in seiner Hierarchie – Band und Hangar bewegen sie wie gewohnt –, vor jedem Bild landen
+// ihre Lagen in einem InstancedMesh je Geometrie und Materialart. Spielfarbe und Abdunkeln laufen über die
+// Instanzfarbe. Vorher: je Flieger 5–16 Draw-Calls (13 Flieger ≈ 60–200), jetzt ein paar Dutzend insgesamt.
 // Aufbau: group (Position, Größe) → bob (Schweben, Rückstoß) → hull (Ausrichtung zum Ziel: lokal +Y = Nase, die
 // Mündung liegt bei (0, 0.6, 0)) → Teile. Jedes Design passt grob in dieselbe Box wie classic (≈ ±0.62 breit,
 // Nase ≈ +0.6, Flammenende ≈ -1.1), damit Plattformen und Warteschlange ohne Sonderfälle passen.
@@ -200,6 +205,8 @@ export function createShipModel(colorId, ammo, { capacity = 20, special, design 
   const tint = (shade, { emissiveFactor = 0, mix = 0, ...options } = {}) => {
     const color = shade instanceof THREE.Color ? base.clone().lerp(shade, mix) : base.clone().multiplyScalar(shade);
     const material = candyMaterial({ ...options, color, ...(emissiveFactor ? { emissive: color, emissiveIntensity: emissiveFactor } : {}) });
+    // gesammelt gezeichnet: gleiche Eigenschaften (ohne Farbe) → dasselbe InstancedMesh, Farbe je Instanz
+    material.userData.batch = { key: JSON.stringify(options) + emissiveFactor, options, glow: emissiveFactor };
     tinted.push({ material, color: color.clone(), glow: emissiveFactor });
     return material;
   };
@@ -218,6 +225,12 @@ export function createShipModel(colorId, ammo, { capacity = 20, special, design 
     (built.bombParent ?? hull).add(bomb);
   }
   bob.add(hull);
+  // Teile sind Platzhalter – gezeichnet werden sie gesammelt (attachShipBatches)
+  hull.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.shipPart = true;
+    o.visible = false;
+  });
   bob.scale.setScalar(CLASS_SCALE[special === 'bomber' ? 1 : capacity] ?? 1);
 
   // Munitions-Blase: weiße Zahl auf dunkler Kugel mit Rand in der Schiffsfarbe
@@ -279,5 +292,116 @@ export function createShipModel(colorId, ammo, { capacity = 20, special, design 
       label.material.dispose();
       texture.dispose();
     },
+  };
+}
+
+// --- Gesammeltes Zeichnen ---------------------------------------------------------------------------------------------
+
+const BATCH_START = 16;   // Instanzen je InstancedMesh am Anfang (wächst bei Bedarf auf das Doppelte)
+
+/** Material eines Stapels: geteilte Materialien direkt, eingefärbte als weiße Vorlage (Farbe je Instanz) */
+function batchMaterial(material) {
+  const batch = material.userData.batch;
+  if (!batch) return { material, owned: false, tinted: false };
+  const { glow, options } = batch;
+  const m = candyMaterial({ ...options, color: 0xffffff, ...(glow ? { emissive: 0xffffff, emissiveIntensity: glow } : {}) });
+  if (glow) {
+    // Gelee leuchtet in der eigenen Farbe: Eigenleuchten × Instanzfarbe
+    m.onBeforeCompile = shader => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n#ifdef USE_COLOR\ntotalEmissiveRadiance *= vColor.rgb;\n#endif',
+      );
+    };
+    m.customProgramCacheKey = () => 'ship-glow';
+  }
+  return { material: m, owned: true, tinted: true };
+}
+
+/** ist das Teil zu sehen? (alle Vorfahren sichtbar und es hängt in der Szene – das Teil selbst ist immer unsichtbar) */
+function partVisible(part, scene) {
+  for (let o = part.parent; o; o = o.parent) {
+    if (o === scene) return true;
+    if (!o.visible) return false;
+  }
+  return false;
+}
+
+/**
+ * Sammelt vor jedem Bild alle Flieger-Teile der Szene in InstancedMeshes (eins je Geometrie + Materialart).
+ * Hängt sich an scene.onBeforeRender (dort sind die Welt-Matrizen schon aktuell). Liefert eine Aufräum-Funktion.
+ */
+export function attachShipBatches(scene) {
+  /** Schlüssel → { mesh, material, owned, tinted, capacity } */
+  const batches = new Map();
+  const parts = [];
+  const previous = scene.onBeforeRender;
+
+  function batchFor(part) {
+    const { geometry, material } = part;
+    const key = geometry.uuid + '|' + (material.userData.batch?.key ?? material.uuid);
+    let b = batches.get(key);
+    if (!b) {
+      b = { key, geometry, capacity: 0, mesh: null, used: 0, ...batchMaterial(material) };
+      batches.set(key, b);
+    }
+    return b;
+  }
+  function grow(b, need) {
+    if (b.capacity >= need) return;
+    const capacity = Math.max(BATCH_START, b.capacity * 2, need);
+    const mesh = new THREE.InstancedMesh(b.geometry, b.material, capacity);
+    mesh.name = 'Flieger (gesammelt)';
+    mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = false;
+    mesh.matrixWorldAutoUpdate = false;
+    if (b.tinted) mesh.setColorAt(0, new THREE.Color(0xffffff));
+    if (b.mesh) {
+      scene.remove(b.mesh);
+      b.mesh.dispose();
+    }
+    b.mesh = mesh;
+    b.capacity = capacity;
+    scene.add(mesh);
+  }
+
+  scene.onBeforeRender = function (...args) {
+    previous?.apply(this, args);
+    parts.length = 0;
+    scene.traverse(o => {
+      if (o.userData.shipPart && partVisible(o, scene)) parts.push(o);
+    });
+    for (const b of batches.values()) b.used = 0;
+    const need = new Map();
+    for (const part of parts) {
+      const b = batchFor(part);
+      need.set(b, (need.get(b) ?? 0) + 1);
+    }
+    for (const [b, n] of need) grow(b, n);
+    for (const part of parts) {
+      const b = batchFor(part);
+      const k = b.used++;
+      b.mesh.setMatrixAt(k, part.matrixWorld);
+      if (b.tinted) b.mesh.setColorAt(k, part.material.color);
+    }
+    for (const b of batches.values()) {
+      if (!b.mesh) continue;
+      b.mesh.count = b.used;
+      b.mesh.visible = b.used > 0;
+      b.mesh.instanceMatrix.needsUpdate = true;
+      if (b.tinted) b.mesh.instanceColor.needsUpdate = true;
+    }
+  };
+
+  return () => {
+    scene.onBeforeRender = previous;
+    for (const b of batches.values()) {
+      if (b.mesh) {
+        scene.remove(b.mesh);
+        b.mesh.dispose();
+      }
+      if (b.owned) b.material.dispose();
+    }
+    batches.clear();
   };
 }

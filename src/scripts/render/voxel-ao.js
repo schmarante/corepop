@@ -4,7 +4,8 @@
 // Stufen haben mehr → dunkler. Der Vertex-Shader verläuft die 8 Eckwerte trilinear über den Würfel, das Licht wird
 // im Fragment-Shader damit abgedunkelt.
 // Pro Voxel zwei Instanz-Attribute (aoA = Ecken 0–3, aoB = Ecken 4–7). Nach einem Treffer rechnen wir nur die
-// Nachbarn neu (refresh).
+// Nachbarn neu (refresh). Die Werte liegen je Voxel vor (Quelle) und werden in den Instanz-Platz des Voxels kopiert –
+// gezeichnet werden nur sichtbare Voxel, ihre Plätze vergibt asteroid-view (`slotOf`, `place`).
 //
 // Dazu Himmelslicht im großen Maßstab (aoSky, ein Wert je Voxel): Wie viel freien Raum sieht der Voxel? Strahlen in die
 // 26 Richtungen, bis zu `range` Voxel weit – je mehr frei bleiben, desto heller. Eine flache Außenfläche ist voll hell,
@@ -40,7 +41,7 @@ function cornerAo({ grid }, v, [sx, sy, sz]) {
  * @param {{ range: number, visible: (i: number) => boolean }} options  range: Strahlenlänge fürs Himmelslicht (Voxel);
  *   visible: wird der Voxel gezeichnet? (nur die brauchen Himmelslicht)
  */
-export function attachVoxelAo(mesh, asteroid, { range, visible }) {
+export function attachVoxelAo(mesh, asteroid, { range, visible, slotOf }) {
   const n = asteroid.voxels.length;
   const a = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
   const b = new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4);
@@ -48,9 +49,20 @@ export function attachVoxelAo(mesh, asteroid, { range, visible }) {
   mesh.geometry.setAttribute('aoA', a);
   mesh.geometry.setAttribute('aoB', b);
   mesh.geometry.setAttribute('aoSky', sky);
+  // Quelle je Voxel: 8 Ecken + Himmelslicht
+  const corners = new Float32Array(n * 8);
+  const skyValue = new Float32Array(n).fill(1);
 
+  /** Werte von Voxel i in seinen Instanz-Platz s kopieren */
+  const copy = (i, s) => {
+    a.array.set(corners.subarray(i * 8, i * 8 + 4), s * 4);
+    b.array.set(corners.subarray(i * 8 + 4, i * 8 + 8), s * 4);
+    sky.array[s] = skyValue[i];
+  };
   const write = v => {
-    for (let c = 0; c < 8; c++) (c < 4 ? a : b).array[v.i * 4 + (c % 4)] = cornerAo(asteroid, v, CORNERS[c]);
+    for (let c = 0; c < 8; c++) corners[v.i * 8 + c] = cornerAo(asteroid, v, CORNERS[c]);
+    const s = slotOf(v.i);
+    if (s >= 0) copy(v.i, s);
   };
   for (const v of asteroid.voxels) write(v);
 
@@ -88,9 +100,14 @@ export function attachVoxelAo(mesh, asteroid, { range, visible }) {
   const target = new Float32Array(n).fill(1);
   const dirty = new Set();
   const fading = new Set();
-  for (const v of asteroid.voxels) if (v.alive && visible(v.i)) sky.array[v.i] = target[v.i] = skyOf(v);
+  for (const v of asteroid.voxels) if (v.alive && visible(v.i)) skyValue[v.i] = target[v.i] = skyOf(v);
 
   return {
+    /** Voxel i hat (neu) den Instanz-Platz s bekommen */
+    place(i, s) {
+      copy(i, s);
+      a.needsUpdate = b.needsUpdate = sky.needsUpdate = true;
+    },
     /** Voxel `v` ist weg: AO der lebenden Nachbarn neu, Himmelslicht der Umgebung als veraltet markieren */
     refresh(v) {
       for (const [dx, dy, dz] of NEIGHBORS_26) {
@@ -118,16 +135,18 @@ export function attachVoxelAo(mesh, asteroid, { range, visible }) {
         const v = asteroid.voxels[i];
         if (!v.alive || !visible(i)) continue;
         target[i] = skyOf(v);
-        if (Math.abs(target[i] - sky.array[i]) > 0.005) fading.add(i);
+        if (Math.abs(target[i] - skyValue[i]) > 0.005) fading.add(i);
       }
       if (!fading.size) return;
       const k = 1 - Math.exp(-SKY_RATE * dt);
       for (const i of fading) {
-        sky.array[i] += (target[i] - sky.array[i]) * k;
-        if (Math.abs(target[i] - sky.array[i]) < 0.005) {
-          sky.array[i] = target[i];
+        skyValue[i] += (target[i] - skyValue[i]) * k;
+        if (Math.abs(target[i] - skyValue[i]) < 0.005) {
+          skyValue[i] = target[i];
           fading.delete(i);
         }
+        const s = slotOf(i);
+        if (s >= 0) sky.array[s] = skyValue[i];
       }
       sky.needsUpdate = true;
     },

@@ -1,5 +1,6 @@
 // Dev-Profiler fürs Spiel (nur Dev-Server und Builds mit PUBLIC_DEBUG=true; Texte bewusst nur Deutsch wie alle Dev-Seiten).
-// Öffnen: Taste I oder `?profiler` in der Adresse (Handy). Zeigt je Bild:
+// Öffnen: Taste I oder `?profiler` in der Adresse (Handy); Antippen der Titelzeile klappt auf eine Zeile zusammen.
+// Zeigt je Bild:
 //   - Bildrate und Bildabstand, CPU-Zeit für Spiel-Update und Render-Aufruf, GPU-Zeit (wenn der Browser
 //     EXT_disjoint_timer_query_webgl2 anbietet – Desktop-Chrome ja, Handys meist nicht)
 //   - three.js-Zähler: Draw-Calls, Dreiecke (inkl. Schattendurchlauf), Geometrien, Texturen, Shader-Programme
@@ -27,13 +28,18 @@ export function attachProfiler(stage, { open = false } = {}) {
     color:#dfe6ff;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;pointer-events:auto;backdrop-filter:blur(4px);
     transition:opacity .2s, translate .2s;`;
   panel.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-bottom:.3rem">
-      <b>Profiler</b><span style="opacity:.6">Taste I</span>
+    <div data-title style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;cursor:pointer">
+      <b>Profiler</b><span data-fps style="opacity:.8"></span><span style="opacity:.6">Taste I · ▾</span>
     </div>
+    <div data-body style="margin-top:.3rem">
     <canvas width="300" height="60" style="width:100%;height:42px;display:block;margin-bottom:.35rem;border-radius:.3rem;background:rgb(255 255 255 / .05)"></canvas>
     <pre data-stats style="margin:0;white-space:pre-wrap"></pre>
     <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem" data-buttons></div>
-    <pre data-top style="margin:.4rem 0 0;white-space:pre-wrap;opacity:.85"></pre>`;
+    <pre data-top style="margin:.4rem 0 0;white-space:pre-wrap;opacity:.85"></pre>
+    </div>`;
+  const body = panel.querySelector('[data-body]');
+  const fpsTitle = panel.querySelector('[data-fps]');
+  panel.querySelector('[data-title]').addEventListener('click', () => (body.hidden = !body.hidden));
   const stats = panel.querySelector('[data-stats]');
   const top = panel.querySelector('[data-top]');
   const graph = panel.querySelector('canvas');
@@ -173,6 +179,7 @@ export function attachProfiler(stage, { open = false } = {}) {
     const canvas = renderer.domElement;
     const { meshes, top: heavy } = heaviest();
     const memory = performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(0)} MB` : 'n/a';
+    fpsTitle.textContent = `${(1000 / (sum.dt / sum.n)).toFixed(0)} fps · ${fmt(info.render.triangles)} △ · ${info.render.calls} DC`;
     stats.textContent =
       `fps        ${(1000 / (sum.dt / sum.n)).toFixed(1)}  (${(sum.dt / sum.n).toFixed(1)} ms)\n` +
       `CPU        Update ${(sum.update / sum.n).toFixed(1)} · Render ${(sum.render / sum.n).toFixed(1)} ms\n` +

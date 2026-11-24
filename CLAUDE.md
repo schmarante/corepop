@@ -168,7 +168,9 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   bis `4 + 0,25·Radius` Voxel – Krater-Inneres dunkel, wird beim Aufräumen heller; nach Treffern begrenzt je Bild
   nachgerechnet und weich übergeblendet) und **Sonnenschatten** auf der Figur und den Explosionswürfeln (die
   werfen und empfangen ihn; Shadow-Map 1024, PCF-weich, `stage.aimShadow` folgt der Figur; Flieger/Deck ohne). Nur von außen sichtbare Voxel werden gezeichnet.
-- Hangar = Deck mit Landeplattformen (`render/hangar-view.js`), Schiff = eigenes Candy-Modell (`render/ship-model.js`),
+- Hangar = Deck mit Landeplattformen (`render/hangar-view.js`), Schiff = eigenes Candy-Modell (`render/ship-model.js`;
+  Teile sind unsichtbare Platzhalter, gezeichnet wird je Geometrie + Materialart ein InstancedMesh für alle Flieger –
+  Farbe/Abdunkeln über die Instanzfarbe, neue Teile brauchen nichts extra),
   darunter das Förderband mit denselben Modellen (Zahl auf dem Rumpf; auf der Plattform wandert sie in die Blase).
 - Logo hüpft alle 3,6 s wie Gummi (ducken, strecken, platt landen; „pop“ etwas später) – `@keyframes logo-bounce` am
   Wort (`.logo-word`). Das „o“ in „pop“ ist der Spreng-Kristall in WebGL (`render/logo-gem.js`: Candy-Würfel, leicht
@@ -266,8 +268,10 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   oder `?profiler` (Handy). Bildrate + Verlauf, CPU-Zeit Update/Render (`stage.onFrame`), GPU-Zeit (nur mit
   `EXT_disjoint_timer_query_webgl2`), Draw-Calls, Dreiecke, teuerste Objekte (Namen der Gruppen: Figur, Hangar,
   Förderband, Flieger, Effekte), Grafik-Stufe 0–3 umschalten (`setQuality`), **Drahtgitter** (`scene.overrideMaterial`).
-  Befund 2026-11-24: Die Figur zeichnet **alle** Instanzen, auch verborgene mit Null-Skalierung (Level 1: 2 373 statt
-  1 106 sichtbare Würfel, Boss ~10 900 statt ~4 600) – der Vertex-Shader rechnet sie trotzdem. Flieger = ~56 Meshes.
+  Befund 2026-11-24 → behoben: Die Figur zeichnete **alle** Instanzen, auch verborgene mit Null-Skalierung (Boss ~10 900
+  statt ~4 600 Würfel); jetzt dicht gepackt (`asteroid-view.js`: `slotOf`/`voxelAt`, `mesh.count`, AO je Voxel als
+  Quelle in `voxel-ao.js` → `place`). Flieger waren ~56 Meshes = Draw-Calls; jetzt gesammelt (`attachShipBatches` in
+  `ship-model.js`, von `stage.js` angehängt). Level 1, Stufe 3: Draw-Calls 86 → 37, Dreiecke der Figur −40 %.
 - Test-Hilfe: mit `PUBLIC_DEBUG=true` bauen (`.env`, siehe `.env.example`) → Taste **B** sprengt den nächsten Kristall, Taste **W** gewinnt das Level sofort, Taste **P** schaltet alles frei (alle Level, überall drei Sterne → alle Specials und Flieger).
 - Testen im Browser ohne Klicken: headless Chromium per DevTools-Pipe (rAF läuft in `--virtual-time-budget` NICHT).
 - Spielbildschirm ist Vollbild (`Base fullscreen`, `h-dvh`), Safe-Areas über `env(safe-area-inset-*)`.
