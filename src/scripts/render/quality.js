@@ -43,6 +43,15 @@ export function onQualityChange(fn) {
   return () => listeners.delete(fn);
 }
 
+/** aktuelle Stufe (Nummer) */
+export const qualityTier = () => tier;
+
+/** Stufe direkt setzen (Dev-Profiler) – nicht gemerkt; die Würfelform gilt ab dem nächsten Level */
+export function setQuality(next) {
+  tier = Math.min(TIERS.length - 1, Math.max(0, next));
+  for (const fn of listeners) fn(TIERS[tier]);
+}
+
 /** eine Stufe herunter (false, wenn schon ganz unten oder von Hand festgelegt) */
 export function lowerQuality() {
   if (forced !== null || tier >= TIERS.length - 1) return false;

@@ -50,6 +50,7 @@ const isBlocked = entry => !!entry && entry.phase === 'ready' && entry.ship.ammo
 
 export function createHangarView(scene, slotCount) {
   const root = new THREE.Group();
+  root.name = 'Hangar';
   scene.add(root);
   let y = -2.5;
   const spacing = slotSpacing(slotCount);

@@ -330,6 +330,12 @@ export function startSolo(root, locale) {
     }
   }
   if (import.meta.env.PUBLIC_DEBUG === 'true') addEventListener('keydown', debugKeys);
+  // Dev-Profiler (Taste I oder ?profiler): Bildzeiten, Draw-Calls, Dreiecke, Drahtgitter – nie auf der echten Seite
+  let detachProfiler = () => {};
+  if (import.meta.env.DEV || import.meta.env.PUBLIC_DEBUG === 'true')
+    import('../dev/profiler.js').then(({ attachProfiler }) => {
+      if (!disposed) detachProfiler = attachProfiler(stage, { open: new URLSearchParams(location.search).has('profiler') });
+    });
 
   const wanted = levelIndex(new URLSearchParams(location.search).get('level') ?? unlockedLevel() + 1);
   load(Math.min(wanted, unlockedLevel()));
@@ -337,6 +343,7 @@ export function startSolo(root, locale) {
   return () => {
     disposed = true;
     removeEventListener('keydown', debugKeys);
+    detachProfiler();
     detachBelt();
     detachDrag();
     playObserver.disconnect();

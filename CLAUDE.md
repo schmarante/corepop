@@ -262,6 +262,12 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   Kennzahlen, Level-Zuordnung und „Schnitt“ durch den Kern. Quelle `src/dev/models.astro` + `src/scripts/dev/`,
   eingebunden per `devPages()` in `astro.config.mjs`: nur im Dev-Server und in Builds mit `PUBLIC_DEBUG=true`.
   Dev-Seiten sind bewusst nur Deutsch (Ausnahme von der i18n-Regel).
+- **Dev-Profiler** (`src/scripts/dev/profiler.js`, nur Dev-Server/`PUBLIC_DEBUG=true`, eigener Chunk): im Spiel Taste **I**
+  oder `?profiler` (Handy). Bildrate + Verlauf, CPU-Zeit Update/Render (`stage.onFrame`), GPU-Zeit (nur mit
+  `EXT_disjoint_timer_query_webgl2`), Draw-Calls, Dreiecke, teuerste Objekte (Namen der Gruppen: Figur, Hangar,
+  Förderband, Flieger, Effekte), Grafik-Stufe 0–3 umschalten (`setQuality`), **Drahtgitter** (`scene.overrideMaterial`).
+  Befund 2026-11-24: Die Figur zeichnet **alle** Instanzen, auch verborgene mit Null-Skalierung (Level 1: 2 373 statt
+  1 106 sichtbare Würfel, Boss ~10 900 statt ~4 600) – der Vertex-Shader rechnet sie trotzdem. Flieger = ~56 Meshes.
 - Test-Hilfe: mit `PUBLIC_DEBUG=true` bauen (`.env`, siehe `.env.example`) → Taste **B** sprengt den nächsten Kristall, Taste **W** gewinnt das Level sofort, Taste **P** schaltet alles frei (alle Level, überall drei Sterne → alle Specials und Flieger).
 - Testen im Browser ohne Klicken: headless Chromium per DevTools-Pipe (rAF läuft in `--virtual-time-budget` NICHT).
 - Spielbildschirm ist Vollbild (`Base fullscreen`, `h-dvh`), Safe-Areas über `env(safe-area-inset-*)`.

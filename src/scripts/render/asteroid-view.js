@@ -85,6 +85,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   const spin = new THREE.Group();
   tilt.add(spin);
   tilt.scale.setScalar(0.001);
+  tilt.name = 'Figur';   // Namen nur für den Dev-Profiler
   scene.add(tilt);
 
   const mesh = new THREE.InstancedMesh(candyBox(size), withVoxelAo(candyMaterial(), size * GAP), asteroid.voxels.length);
@@ -101,6 +102,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   }
   // Mulden, Krater und Stufen dunkler; Krater-Inneres sieht wenig Himmel (voxel-ao.js)
   const ao = attachVoxelAo(mesh, asteroid, { range: Math.round(4 + level.radius * 0.25), visible: i => shown[i] === 1 });
+  mesh.name = 'Figur-Würfel';
   mesh.castShadow = true;      // Sonnenschatten (stage.js): Kraterränder und Erhebungen werfen Schatten auf die Figur
   mesh.receiveShadow = true;
   spin.add(mesh);
@@ -114,6 +116,7 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
         ghost.instanceMatrix = mesh.instanceMatrix;
         ghost.matrixAutoUpdate = false;
         ghost.matrixWorldAutoUpdate = false;   // Welt-Matrix setzen wir selbst (Figur + Versatz)
+        ghost.name = 'Glitch-Geist';
         ghost.frustumCulled = false;
         ghost.visible = false;
         ghost.renderOrder = 3;

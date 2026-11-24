@@ -113,6 +113,7 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
   applyQuality(quality());
 
   let loop = null;
+  const frameHooks = new Set();
   return {
     /** neu ausrichten, z. B. wenn sich die Höhe der Schiffsauswahl ändert */
     relayout: resize,
@@ -140,14 +141,26 @@ export function createStage(canvas, { onLayout, minHalfWidth = MIN_HALF_WIDTH, m
     warmUp() {
       renderer.compile(scene, camera);
     },
+    /** Rückruf nach jedem Bild mit Zeiten in ms ({ dt, update, render } – CPU-Seite) – für den Dev-Profiler;
+     *  liefert eine Abmelde-Funktion */
+    onFrame(fn) {
+      frameHooks.add(fn);
+      return () => frameHooks.delete(fn);
+    },
     /** startet die Render-Schleife (GAME_FPS, frame-loop.js); update(dt) läuft vor jedem Bild */
     run(update) {
       loop = startFrameLoop(dt => {
+        const t0 = performance.now();
         update(dt);
+        const t1 = performance.now();
         shake = Math.max(0, shake - dt * SHAKE_DECAY * Math.max(shake, 0.3));
         const k = shake * shake * SHAKE_AMOUNT;   // quadratisch: kleine Werte kaum spürbar, große deutlich
         camera.position.set(home.x + (Math.random() * 2 - 1) * k, home.y + (Math.random() * 2 - 1) * k, home.z);
         renderer.render(scene, camera);
+        if (frameHooks.size) {
+          const t2 = performance.now();
+          for (const fn of frameHooks) fn({ dt, update: t1 - t0, render: t2 - t1 });
+        }
         meter?.frame();
         canvas.classList.add('is-ready');   // erstes Bild steht → weich einblenden (CSS .fade-in)
       }, { fps: GAME_FPS, onTick: meter?.tick });

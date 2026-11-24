@@ -43,6 +43,7 @@ const xOf = pos => (pos - (BELT_LENGTH - 1) / 2) * SPACING + SHIFT;
  */
 export function createBeltView(scene, slotCount, { moreText, design = 'classic' }) {
   const root = new THREE.Group();
+  root.name = 'Förderband';
   scene.add(root);
   let y = -2.5;
   let age = 0;

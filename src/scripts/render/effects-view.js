@@ -101,6 +101,7 @@ function getGlowTexture() {
 /** @param {THREE.Scene} scene  @param {THREE.Camera} camera  (Druckwelle zur Kamera, Würfel hinter der Kamera sind weg) */
 export function createEffectsView(scene, camera) {
   const root = new THREE.Group();
+  root.name = 'Effekte';
   scene.add(root);
   // Schuss: dünner Leuchtstreifen (kleine Spitze, Spur gleich breit beginnend) statt Tropfen
   const shotGeometry = new THREE.SphereGeometry(SHOT_RADIUS, 10, 6);

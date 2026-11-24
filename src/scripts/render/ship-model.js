@@ -205,6 +205,7 @@ export function createShipModel(colorId, ammo, { capacity = 20, special, design 
   };
 
   const group = new THREE.Group();
+  group.name = 'Flieger';
   const bob = new THREE.Group();
   const hull = new THREE.Group();
   const built = (DESIGNS[design] ?? DESIGNS.classic)(hull, { tint });
