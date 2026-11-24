@@ -15,10 +15,16 @@ describe('Spielstand verwürfelt und signiert (secure.js)', () => {
 
   it('Klartext, veränderte und kopierte Werte werden ignoriert', () => {
     expect(decode('corepop:v1', '{"unlocked":12}')).toBeNull();
+    // viele Durchläufe: jede Speicherung hat eine andere Nonce – der Test darf nicht vom Zufall abhängen
+    for (let k = 0; k < 200; k++) {
+      const stored = encode('corepop:v1', '{"unlocked":3}');
+      const [prefix, nonce, mac, data] = stored.split('.');
+      // erstes Zeichen ändern – es trägt immer echte Datenbits (die letzten können Base64-Auffüllung sein)
+      const flipped = (data[0] === 'A' ? 'B' : 'A') + data.slice(1);
+      expect(decode('corepop:v1', [prefix, nonce, mac, flipped].join('.'))).toBeNull();
+    }
     const stored = encode('corepop:v1', '{"unlocked":3}');
     const [prefix, nonce, mac, data] = stored.split('.');
-    const flipped = data.slice(0, -2) + (data.at(-2) === 'A' ? 'B' : 'A') + data.at(-1);
-    expect(decode('corepop:v1', [prefix, nonce, mac, flipped].join('.'))).toBeNull();
     expect(decode('corepop:v1', [prefix, nonce, mac.replace(/.$/, c => (c === '0' ? '1' : '0')), data].join('.'))).toBeNull();
     expect(decode('anderer:schluessel', stored)).toBeNull();
     expect(decode('corepop:v1', null)).toBeNull();
