@@ -22,19 +22,6 @@ corepop is a free color-sorting puzzle game in 3D. A figure made of candy-colore
 
 13 handmade figures in comic style (including a pirate ship as a boss with over 10,000 cubes), up to three stars per level, unlockable specials (extra pad, recolor, supernova) and ship designs (paper plane, gummy bear, retro rocket, mini UFO). No sign-up, no ads, no tracking – progress stays in the browser. Languages: German and English.
 
-## Development
-
-The project runs in [DDEV](https://ddev.com) (Node only inside the container), packages via Yarn:
-
-```sh
-ddev yarn install   # dependencies
-ddev yarn dev       # dev server with hot reload: https://corepop.localhost:4321/
-ddev yarn build     # static site in dist/, served at https://corepop.localhost/
-ddev yarn test      # Vitest: game logic, save game, translations, bot simulations
-```
-
-Build with `PUBLIC_DEBUG=true` for test keys in the game (**B** blasts a crystal, **W** wins the level, **P** unlocks everything) and the model overview at `/dev/modelle/`. Every push to `develop` is tested, built and deployed to GitHub Pages ([workflow](.github/workflows/static.yml)).
-
 ## Built with
 
 corepop is built on great open-source projects. Thanks to everyone who contributes to them!
