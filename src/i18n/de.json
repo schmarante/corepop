@@ -86,6 +86,7 @@
     }
   },
   "special": {
+    "charging": "{name} lädt – {percent} %",
     "locked": "{name} – ab Level {level}",
     "pad": {
       "name": "Plattform +1",
@@ -97,7 +98,7 @@
     },
     "nova": {
       "name": "Supernova",
-      "hint": "Eine riesige Explosion reißt die Figur auf."
+      "hint": "Eine riesige Explosion reißt die Figur auf. Lädt sich danach langsam wieder auf – gleich zünden oder für den Boss aufheben?"
     },
     "recall": {
       "name": "Zurückziehen",

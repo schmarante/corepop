@@ -3,7 +3,8 @@
 // sich nicht einfach ändern. Jeder Zugriff abgefangen: ein blockierter Speicher darf das Spiel nie kaputt machen.
 //
 // Freischalten:
-//   Specials (je Levelversuch einmal einsetzbar) nach erreichtem Level – SPECIALS
+//   Specials (je Levelversuch einmal einsetzbar) nach erreichtem Level – SPECIALS; die Supernova hat dazu eine Ladung,
+//   die über Level hinweg bleibt (novaCharge – einsetzen oder für den Boss aufheben)
 //   Flieger-Designs nach gesammelten Sternen – DESIGNS
 import { LEVELS } from '../core/levels.js';
 import { secureGet, secureSet } from './secure.js';
@@ -13,10 +14,12 @@ const KEY = 'corepop:v1';
 /** Specials: ab welchem Level (0-basiert, „erreicht“ = freigeschaltet) */
 export const SPECIALS = [
   { id: 'pad', from: 2 },      // Plattform +1 – ab Level 3
+  { id: 'nova', from: 3 },     // Supernova – ab Level 4: sofort einsetzen oder für den ersten Boss (Level 5) aufheben
   { id: 'recolor', from: 4 },  // Farbwechsel – ab Level 5
-  { id: 'nova', from: 5 },     // Supernova – nach dem ersten Boss (Piratenschiff, Level 5)
   { id: 'recall', from: 7 },   // Zurückziehen – ab Level 8 (Flieger vom Deck zurück aufs Band)
 ];
+/** Supernova: so viele Level Fortschritt (zerstörte Blöcke ÷ Blöcke des Levels) braucht eine volle Ladung */
+export const NOVA_RECHARGE = 2;
 
 /** Flieger-Designs: ab wie vielen Sternen insgesamt (Reihenfolge = Menü) */
 export const DESIGNS = [
@@ -69,6 +72,18 @@ export function recordStars(index, stars) {
   save(data);
   const after = totalStars();
   return { designs: DESIGNS.filter(d => d.stars > before && d.stars <= after).map(d => d.id) };
+}
+
+/** Ladung der Supernova 0 … 1 – bleibt über Level und Sitzungen; noch nie gespeichert = voll (frisch freigeschaltet) */
+export function novaCharge() {
+  const n = Number(load().nova ?? 1);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1;
+}
+
+export function setNovaCharge(value) {
+  const n = Math.min(1, Math.max(0, value));
+  if (Math.abs(n - novaCharge()) < 1e-4) return;
+  save({ ...load(), nova: n });
 }
 
 /** ist dieses Special freigeschaltet? (nach erreichtem Level) */

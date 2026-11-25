@@ -86,7 +86,7 @@ export const STAR_TWO = 4;
 export const STAR_THREE = 1;
 /** Specials: so viele Blöcke färbt der Farbwechsel höchstens um; so viel stärker als ein Kristall ist die Supernova */
 const RECOLOR_MAX = 60;
-const NOVA_POWER = 1.9;
+const NOVA_POWER = 2.6;   // Level 4: ~50 % der Blöcke, Piratenschiff (Boss): ~31 % (früher 1,9: 27 % / 15 %)
 /** Eigendrehung, wenn fast nichts mehr übrig ist (Anteil von level.spin) – game.spin */
 export const SPIN_MIN = 0.35;
 /** s ohne Ziel, ab denen ein Schiff als blockiert gilt (Darstellung: Plattform warnt, Schiff dimmt) */

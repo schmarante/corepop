@@ -15,7 +15,7 @@ import { createToast } from '../ui/toast.js';
 import { createHint } from '../ui/hint.js';
 import { createTutorial, tutorialDone } from '../ui/tutorial.js';
 import { attachDragRotate } from '../ui/drag-rotate.js';
-import { unlockedLevel, unlockLevel, unlockEverything, specialUnlocked, recordStars, shipDesign, SPECIALS } from '../store/progress.js';
+import { unlockedLevel, unlockLevel, unlockEverything, specialUnlocked, recordStars, shipDesign, SPECIALS, NOVA_RECHARGE, novaCharge, setNovaCharge } from '../store/progress.js';
 import { createSpecials } from '../ui/specials.js';
 import { useTranslations } from '../../i18n/index.js';
 import { getSound } from '../audio/sound.js';
@@ -87,18 +87,35 @@ export function startSolo(root, locale) {
   let picking = null;
   const specials = createSpecials(root, {
     onUse: useSpecial,
-    onLocked: id => toast.show(t('special.locked', { name: t(`special.${id}.name`), level: SPECIALS.find(s => s.id === id).from + 1 })),
+    onLocked: id =>
+      toast.show(
+        specialUnlocked(id)   // freigeschaltet, aber noch nicht geladen (Supernova)
+          ? t('special.charging', { name: t(`special.${id}.name`), percent: Math.floor(nova.charge * 100) })
+          : t('special.locked', { name: t(`special.${id}.name`), level: SPECIALS.find(s => s.id === id).from + 1 }),
+      ),
   });
   /** Fortschritt bis zur Freischaltung eines Specials: geschaffte Level plus Anteil am gerade gespielten (wenn es das
    *  nächste noch nicht geschaffte ist) – füllt sich mit jedem Treffer */
   const specialProgress = id => {
     const from = SPECIALS.find(s => s.id === id).from;
     const reached = unlockedLevel();
+    if (id === 'nova' && reached >= from) return nova.charge;   // freigeschaltet: Ladestand
     if (reached >= from) return 1;
     const current = game && index === reached ? game.destroyed / game.asteroid.total : 0;
     return (reached + current) / from;
   };
-  const refreshSpecials = () => specials.update({ unlocked: specialUnlocked, used: id => !!game?.usedSpecials.has(id), progress: specialProgress });
+  // Supernova-Ladung: jeder zerstörte Block lädt nach (NOVA_RECHARGE Level für eine volle Ladung); gespeichert wird beim
+  // Levelende, beim Einsetzen und beim Verlassen – nicht bei jedem Treffer
+  const nova = { charge: novaCharge(), counted: 0 };
+  const chargeNova = () => {
+    if (!game) return;
+    const fresh = game.destroyed - nova.counted;
+    nova.counted = game.destroyed;
+    if (fresh > 0 && specialUnlocked('nova')) nova.charge = Math.min(1, nova.charge + fresh / (game.asteroid.total * NOVA_RECHARGE));
+  };
+  const saveNova = () => specialUnlocked('nova') && setNovaCharge(nova.charge);
+  const specialReady = id => specialUnlocked(id) && (id !== 'nova' || nova.charge >= 1);
+  const refreshSpecials = () => specials.update({ unlocked: specialReady, used: id => !!game?.usedSpecials.has(id), progress: specialProgress });
 
   function placeViews({ asteroidY, hangarY } = stage.anchors) {
     views?.asteroid.setY(asteroidY);
@@ -121,7 +138,9 @@ export function startSolo(root, locale) {
       views.effects.dispose();
       outgoing.push({ views, game });
     }
+    saveNova();   // Ladung aus dem vorigen Versuch sichern
     game = createGame(LEVELS[i]);
+    nova.counted = 0;
     tutorial?.dispose();
     tutorial = i === 0 && !tutorialDone() ? createTutorial(root, t('game.tutorial')) : null;
     if (import.meta.env.DEV) window.__game = game;   // nur Dev-Server: für Tests im Headless-Browser (Spielzustand herstellen)
@@ -154,6 +173,7 @@ export function startSolo(root, locale) {
 
   const updateHud = () => {
     hud.update({ index, destroyed: game.destroyed, total: game.asteroid.total });
+    chargeNova();
     refreshSpecials();   // gesperrte Specials füllen sich mit dem Fortschritt
   };
 
@@ -270,7 +290,14 @@ export function startSolo(root, locale) {
       return;
     }
     setPicking(null);
+    if (id === 'nova' && nova.charge < 1) return;
     const events = id === 'nova' ? game.special('nova', views.asteroid.cameraInGrid(stage.camera)) : game.special(id);
+    if (id === 'nova' && events.length) {
+      // Ladung verbraucht; die eigenen Bruchstücke laden nicht wieder auf
+      nova.charge = 0;
+      nova.counted = game.destroyed;
+      saveNova();
+    }
     if (events.length) toast.show(t(`special.${id}.name`));
     handle(events);
     refreshSpecials();
@@ -278,6 +305,8 @@ export function startSolo(root, locale) {
 
   function won() {
     const last = index === LEVELS.length - 1;
+    chargeNova();
+    saveNova();
     setTimeout(() => !disposed && sound.play('won'), RESULT_DELAY - 250);   // Fanfare kurz bevor der Dialog aufgeht
     unlockLevel(index + 1);
     const stars = game.stars();
@@ -305,6 +334,8 @@ export function startSolo(root, locale) {
 
   function lost({ reason, color }) {
     const ammo = reason === 'ammo';
+    chargeNova();
+    saveNova();
     sound.play('lost');
     dialog.show({
       heading: t(ammo ? 'game.lostAmmo' : 'game.lost'),
@@ -380,6 +411,8 @@ export function startSolo(root, locale) {
   return () => {
     disposed = true;
     removeEventListener('keydown', debugKeys);
+    chargeNova();
+    saveNova();
     tutorial?.dispose();
     detachProfiler();
     detachBelt();

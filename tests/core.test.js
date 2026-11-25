@@ -698,7 +698,8 @@ describe('Sterne und Specials', () => {
     const blown = events.filter(e => e.type === 'break').flatMap(e => e.voxels);
     expect(blown.length).toBeGreaterThan(100);
     expect(game.destroyed).toBe(before + 1 + blown.length);
-    // vorn, nicht hinten: der Schwerpunkt der weggesprengten Würfel liegt deutlich auf der Kameraseite
-    expect(blown.reduce((sum, v) => sum + v.z, 0) / blown.length).toBeGreaterThan(2);
+    // vorn, nicht hinten: der Schwerpunkt der weggesprengten Würfel liegt deutlich auf der Kameraseite (seit NOVA_POWER
+    // 2,6 reicht sie tiefer – Schwerpunkt ~1,9 Voxel vor der Mitte)
+    expect(blown.reduce((sum, v) => sum + v.z, 0) / blown.length).toBeGreaterThan(1.2);
   });
 });

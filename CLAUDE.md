@@ -249,7 +249,11 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   freigeschaltet nach Level (`SPECIALS` in `store/progress.js`): **Plattform +1** ab L3 (schwebende Zusatz-Plattform
   rechts oberhalb des Decks – eine Plattform mehr), **Farbwechsel** ab L5 (Knopf, dann
   Flieger auf dem Band antippen: bis zu 60 äußerste Blöcke anderer Farben bekommen seine Farbe, er die Schüsse dazu), **Supernova**
-  ab L7 (Riesen-Explosion am vordersten Punkt, `blastPower` × 1,9), **Zurückziehen** ab L8 (Knopf, dann Flieger auf
+  ab L4 (Riesen-Explosion am vordersten Punkt, `blastPower` × `NOVA_POWER` 2,6: L4 ~50 %, Boss ~31 % plus Kettenreaktion
+  über Kristalle) mit **Ladung über Level hinweg** (`novaCharge`/`setNovaCharge` in progress.js, frisch = voll): Einsetzen
+  verbraucht sie, jeder zerstörte Block lädt `1/(Blöcke × NOVA_RECHARGE)` nach (≈ 2 Level; eigene Bruchstücke nicht) –
+  sofort zünden oder für den Boss aufheben. Ladestand = Füllanzeige, Toast `special.charging`; gespeichert bei
+  Levelende/Einsetzen/Verlassen, **Zurückziehen** ab L8 (Knopf, dann Flieger auf
   dem Deck antippen – `hangar-view.pick`: er fliegt zur Luke und kommt mit Restmunition als Nächstes wieder aufs Band,
   `queue.unshift`; Schüsse in der Luft fliegen weiter, `shooter` in `core/game.js`).
 - **Flieger-Designs** (`render/ship-model.js`, Option `design`): classic, paper (6 ★), gummy (14 ★), rocket (24 ★),
