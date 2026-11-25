@@ -21,6 +21,8 @@ const SHIP_SIZE = 0.7;
 /** Parkstellung: flach auf dem Band, Nase nach links (Laufrichtung) */
 const PARKED = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
 const LABEL_ON_HULL = new THREE.Vector3(0, 0.62, 0.3);   // über dem liegenden Flieger
+// Tutorial-Anzeiger (Level 1): kleine gelbe Pyramide auf der Spitze über dem Flieger, dreht sich und federt
+const INDICATOR = { radius: 0.4, height: 0.66, lift: 1.3, bounce: 0.16, bounceRate: 4.2, spin: 2.4, grow: 10 };
 const LABEL_SIZE = 0.72;
 const FINISHED_DIM = 0.85;     // Flieger einer fertigen Farbe: stark abgedunkelt (grau)
 const EMERGE = 0.7;            // Bandplätze: so weit wächst ein Flieger aus der Luke heraus
@@ -102,6 +104,18 @@ export function createBeltView(scene, slotCount, { moreText, design = 'classic' 
   const target = new THREE.Vector3();
   const v = new THREE.Vector3();
   const tumble = new THREE.Quaternion();
+
+  // Tutorial-Anzeiger: Pyramide (vier Seiten, flach schattiert), Spitze nach unten; wächst weich herein/heraus
+  const indicatorGeometry = new THREE.ConeGeometry(INDICATOR.radius, INDICATOR.height, 4).rotateX(Math.PI);
+  const indicatorMaterial = candyMaterial({ color: 0xffe14d, emissive: 0xffc21a, emissiveIntensity: 0.85, flatShading: true, roughness: 0.25 });
+  const indicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+  indicator.name = 'Tutorial-Pyramide';
+  indicator.visible = false;
+  root.add(indicator);
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let indicatorShip = null;
+  let indicatorSize = 0;
+  let indicatorTime = 0;
 
   const beltY = () => y - BELOW;
   const place = (pos, out = target) => out.set(xOf(pos), beltY() - 0.12, SLOT_Z + 0.35);   // liegt auf dem Band
@@ -204,12 +218,28 @@ export function createBeltView(scene, slotCount, { moreText, design = 'classic' 
       const slot = Math.round(best.x / spacing + (slotCount - 1) / 2);
       return { id: best.id, slot: Math.max(0, Math.min(slotCount - 1, slot)) };
     },
-    /** Bildschirmpunkt (NDC) eines Fliegers auf dem Band – oder null (Tutorial-Handschuh) */
+    /** Tutorial: Pyramide über diesem Flieger zeigen (null = ausblenden) */
+    setIndicator(shipId) {
+      indicatorShip = shipId;
+    },
+    /** Pyramide bewegen – je Bild, auch wenn das Spiel pausiert (Tutorial-Pause) */
+    updateIndicator(dt) {
+      const item = indicatorShip !== null ? items.get(indicatorShip) : null;
+      indicatorSize += ((item ? 1 : 0) - indicatorSize) * (1 - Math.exp(-INDICATOR.grow * dt));
+      indicator.visible = indicatorSize > 0.01;
+      if (!indicator.visible) return;
+      indicatorTime += dt;
+      const hop = reducedMotion ? 0 : Math.abs(Math.sin(indicatorTime * INDICATOR.bounceRate)) * INDICATOR.bounce;
+      if (item) indicator.position.copy(item.model.group.position).add(v.set(0, INDICATOR.lift + hop, 0));
+      if (!reducedMotion) indicator.rotation.y += INDICATOR.spin * dt;
+      indicator.scale.setScalar(indicatorSize);
+    },
+    /** Bildschirmpunkt (NDC) eines Fliegers auf dem Band – oder null (Tutorial) */
     screenPosition(id, camera, out = new THREE.Vector3()) {
       const item = items.get(id);
       return item ? out.copy(item.model.group.position).project(camera) : null;
     },
-        /** Flieger auf dem Band von links nach rechts (für die Tasten 1 … 9) */
+    /** Flieger auf dem Band von links nach rechts (für die Tasten 1 … 9) */
     visibleIds(belt) {
       return belt.filter(item => item.pos <= BELT_LENGTH - 0.5).map(item => item.ship.id);
     },
@@ -280,7 +310,7 @@ export function createBeltView(scene, slotCount, { moreText, design = 'classic' 
       for (const f of falling) disposeModel(f.model);
       items.clear();
       falling.length = 0;
-      [slabGeometry, slabMaterial, stripes, rollerGeometry, rollerMaterial, hatchGeometry, hatchMaterial, mouthGeometry, mouthMaterial, moreTexture, more.material].forEach(o => o.dispose());
+      [indicatorGeometry, indicatorMaterial, slabGeometry, slabMaterial, stripes, rollerGeometry, rollerMaterial, hatchGeometry, hatchMaterial, mouthGeometry, mouthMaterial, moreTexture, more.material].forEach(o => o.dispose());
       scene.remove(root);
     },
   };

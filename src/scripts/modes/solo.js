@@ -168,6 +168,7 @@ export function startSolo(root, locale) {
     hint.done();
     tutorial?.done();
     tutorial = null;
+    views.belt.setIndicator(null);
   }
 
   /** Special Zurückziehen: Flieger von dieser Plattform zurück in die Luke */
@@ -312,10 +313,12 @@ export function startSolo(root, locale) {
     // Tutorial (Level 1): Handschuh folgt dem vordersten Flieger; reagiert man nicht, hält es das Spiel an
     if (tutorial && game && views && !options?.open) {
       const front = game.belt.find(item => item.pos <= BELT_LENGTH - 0.5);
+      views.belt.setIndicator(front?.ship.id ?? null);
       const ndc = front && views.belt.screenPosition(front.ship.id, stage.camera);
       const box = canvas.getBoundingClientRect();
       tutorial.update(dt, ndc ? { x: ((ndc.x + 1) / 2) * box.width, y: ((1 - ndc.y) / 2) * box.height } : null, front?.pos);
     }
+    views?.belt.updateIndicator(dt);   // Tutorial-Pyramide dreht sich auch in der Pause weiter
     if (!game || options?.open || tutorial?.paused) return stage.glitch(null);
     views.asteroid.rotate(game.spin * dt);   // je weniger übrig, desto langsamer (core/game.js → spin)
     views.asteroid.update(dt);
