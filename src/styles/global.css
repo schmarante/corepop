@@ -170,6 +170,69 @@ html {
 @keyframes special-pick {
   to { scale: 1.15; filter: brightness(1.35); }
 }
+/* Tutorial im ersten Level (ui/tutorial.js): Fokus-Maske mit Loch um den Flieger, federnder Handschuh, Sprechblase.
+   Lässt Antippen durch. --x/--y = Bildschirmpunkt des Fliegers (px, relativ zum Spielbildschirm). */
+.tutorial {
+  --x: 50%;
+  --y: 80%;
+  --hole: 52px;
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.tutorial.is-on.has-target {
+  opacity: 1;
+}
+.tutorial-mask {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--x) var(--y), transparent var(--hole), rgb(6 5 20 / 0.74) calc(var(--hole) + 28px));
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.tutorial.is-paused .tutorial-mask {
+  opacity: 1;
+}
+.tutorial-pointer {
+  position: absolute;
+  left: var(--x);
+  top: calc(var(--y) - 30px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  translate: -50% -100%;
+}
+.tutorial-glove {
+  width: 54px;
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 0.45));
+  transform-origin: 50% 100%;
+  animation: tutorial-bounce 0.9s cubic-bezier(.3, 0, .3, 1) infinite;
+}
+.tutorial-glove svg {
+  display: block;
+  width: 100%;
+}
+.tutorial-bubble {
+  margin-bottom: 6px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #1b1d33;
+  font-weight: 900;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 #ff2bd6, 0 6px 14px rgb(0 0 0 / 0.35);
+}
+/* federnd: runter zum Flieger, kurz platt drücken (Tippen), wieder hoch */
+@keyframes tutorial-bounce {
+  0%, 100% { transform: translateY(-14px); }
+  45% { transform: translateY(6px) scale(1, 1); }
+  55% { transform: translateY(8px) scale(1.08, 0.9); }
+  70% { transform: translateY(0) scale(1, 1); }
+}
 /* Sterne (Sieg-Dialog, Startseite): erreichte gold, nacheinander mit kleinem Sprung */
 .star {
   display: inline-block;

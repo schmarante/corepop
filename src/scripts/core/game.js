@@ -9,7 +9,8 @@
 //
 // Förderband: Unter dem Deck läuft ein Band mit BELT_LENGTH sichtbaren Plätzen nach links (Platz 0 = Bandende links,
 // BELT_LENGTH − 1 = Einfahrt rechts; Tempo `level.belt` Plätze/s). Neue Schiffe kommen rechts aus der Luke (`queue`),
-// je ein Platz Abstand; nimmt man eines heraus, bleibt die Lücke. Jedes Schiff auf dem Band ist antippbar und fliegt
+// je ein Platz Abstand; nimmt man eines heraus, rutschen die dahinter schnell auf (BELT_CATCHUP – Stauband: der vorderste
+// fährt im normalen Tempo weiter, Lücken schließen sich, Nachschub kommt sofort). Jedes Schiff auf dem Band ist antippbar und fliegt
 // auf irgendeine freie Plattform. Was links ankommt, fällt herunter und ist weg (Ereignis 'drop'). Die Flotte hat
 // etwas Reserve-Munition (fleet.js); fällt ein Schiff, ohne das seine Farbe nicht mehr reicht (`essential` – die
 // Darstellung warnt), ist das Spiel verloren. Ein heruntergefallener Spreng-Flieger entschärft einen Kristall (defuse).
@@ -71,6 +72,13 @@ const CRYSTAL_PRIORITY = 1;   // ein sichtbarer Kristall wird vor allen anderen 
 /** Förderband: sichtbare Plätze, Standard-Tempo (Plätze/s, Level: `belt`), Abstand des ersten Schiffs zum Ende */
 export const BELT_LENGTH = 8;
 export const DEFAULT_BELT_SPEED = 0.2;
+/** Plätze/s, mit denen Schiffe hinter einer Lücke aufrutschen (bis ein Platz Abstand zum Vordermann). Vorher blieben
+ *  Lücken stehen – neue Schiffe kamen nur im Bandtempo nach (Tempo 0,25: alle 4 s eins), man wartete auf Nachschub. */
+export const BELT_CATCHUP = 2.5;
+/** nur aufrutschen, solange weniger Schiffe auf dem Band liegen UND eine Plattform frei ist (man also wartet) – immer
+ *  aufrutschen hielt das Band voll, am Ende fiel im Bandtempo ständig eins herunter (gemessen: schlauer Bot gewann den
+ *  Boss nur noch 17–67 % statt 100 %, weil wichtige Schiffe fielen, während die Plattformen besetzt waren) */
+export const BELT_MIN = 4;
 const BELT_START = 2.5;   // erstes Schiff startet so weit vom Bandende – etwas Zeit zum Umschauen
 const DROP_AT = -0.5;     // Position, an der ein Schiff herunterfällt (halb über die Kante)
 /** Sterne: höchstens so viele Fehlstarts (gestartete Schiffe, die blockiert stehen blieben) für ★★ bzw. ★★★ */
@@ -360,7 +368,16 @@ export function createGame(level, { seed = level.seed } = {}) {
       if (state !== 'play') return events;
 
       // Förderband: läuft nach links; rechts kommen neue Schiffe aus der Luke (je ein Platz Abstand), links fallen sie
-      for (const item of belt) item.pos -= beltSpeed * dt;
+      const sparse = belt.filter(item => item.pos <= BELT_LENGTH - 0.5).length < BELT_MIN && slots.some(e => !e);
+      for (let k = 0; k < belt.length; k++) {
+        const item = belt[k];
+        item.pos -= beltSpeed * dt;
+        // Stauband (nur wenn wenig auf dem Band liegt): hinter einer Lücke schnell aufrutschen, nie näher als ein Platz
+        // an den Vordermann; der vorderste fährt im Bandtempo
+        if (k === 0 || !sparse) continue;
+        const close = belt[k - 1].pos + 1;
+        if (item.pos > close) item.pos = Math.max(close, item.pos - BELT_CATCHUP * dt);
+      }
       while (queue.length && (!belt.length || belt.at(-1).pos + 1 <= BELT_LENGTH))
         belt.push({ ship: queue.shift(), pos: Math.max(BELT_LENGTH, (belt.at(-1)?.pos ?? 0) + 1) });
       while (belt.length && belt[0].pos < DROP_AT) {

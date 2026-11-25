@@ -2,7 +2,7 @@
 // Markup: src/components/SoloGame.astro. Level aus ?level=n (1-basiert), höchstens bis zum freigeschalteten.
 import * as THREE from 'three';
 import { LEVELS, levelIndex } from '../core/levels.js';
-import { createGame } from '../core/game.js';
+import { createGame, BELT_LENGTH } from '../core/game.js';
 import { createStage } from '../render/stage.js';
 import { createAsteroidView } from '../render/asteroid-view.js';
 import { createHangarView } from '../render/hangar-view.js';
@@ -13,6 +13,7 @@ import { createHud } from '../ui/hud.js';
 import { createDialog } from '../ui/dialog.js';
 import { createToast } from '../ui/toast.js';
 import { createHint } from '../ui/hint.js';
+import { createTutorial, tutorialDone } from '../ui/tutorial.js';
 import { attachDragRotate } from '../ui/drag-rotate.js';
 import { unlockedLevel, unlockLevel, unlockEverything, specialUnlocked, recordStars, shipDesign, SPECIALS } from '../store/progress.js';
 import { createSpecials } from '../ui/specials.js';
@@ -32,6 +33,7 @@ export function startSolo(root, locale) {
   let game = null;
   let views = null;   // { asteroid, hangar, belt, effects } – pro Level neu
   let outgoing = [];  // Ansichten des vorigen Levels, die noch herausschrumpfen: { views, game }
+  let tutorial = null;   // nur im ersten Level, bis zum ersten Start (ui/tutorial.js)
 
   let stage;
   let playObserver;
@@ -108,6 +110,8 @@ export function startSolo(root, locale) {
       outgoing.push({ views, game });
     }
     game = createGame(LEVELS[i]);
+    tutorial?.dispose();
+    tutorial = i === 0 && !tutorialDone() ? createTutorial(root, t('game.tutorial')) : null;
     if (import.meta.env.DEV) window.__game = game;   // nur Dev-Server: für Tests im Headless-Browser (Spielzustand herstellen)
     // Boss-Level: Hintergrund wechselt in die Boss-Stimmung (render/starfield.js liest data-boss), die Figur glitcht
     document.documentElement.dataset.boss = game.level.boss ? '1' : '';
@@ -162,6 +166,8 @@ export function startSolo(root, locale) {
     if (status !== 'ok') return;
     handle(game.launch(id, slot ?? 0));
     hint.done();
+    tutorial?.done();
+    tutorial = null;
   }
 
   /** Special Zurückziehen: Flieger von dieser Plattform zurück in die Luke */
@@ -303,7 +309,14 @@ export function startSolo(root, locale) {
       old.belt.dispose();
       return false;
     });
-    if (!game || options?.open) return stage.glitch(null);
+    // Tutorial (Level 1): Handschuh folgt dem vordersten Flieger; reagiert man nicht, hält es das Spiel an
+    if (tutorial && game && views && !options?.open) {
+      const front = game.belt.find(item => item.pos <= BELT_LENGTH - 0.5);
+      const ndc = front && views.belt.screenPosition(front.ship.id, stage.camera);
+      const box = canvas.getBoundingClientRect();
+      tutorial.update(dt, ndc ? { x: ((ndc.x + 1) / 2) * box.width, y: ((1 - ndc.y) / 2) * box.height } : null, front?.pos);
+    }
+    if (!game || options?.open || tutorial?.paused) return stage.glitch(null);
     views.asteroid.rotate(game.spin * dt);   // je weniger übrig, desto langsamer (core/game.js → spin)
     views.asteroid.update(dt);
     stage.glitch(views.asteroid.glitchState());   // Boss: Farbgeister als Pixel-Shader (stage.js)
@@ -349,6 +362,7 @@ export function startSolo(root, locale) {
   return () => {
     disposed = true;
     removeEventListener('keydown', debugKeys);
+    tutorial?.dispose();
     detachProfiler();
     detachBelt();
     detachDrag();

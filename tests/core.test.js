@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LEVELS, levelIndex } from '../src/scripts/core/levels.js';
-import { createGame, TIMING, FACING, BLOCKED_AFTER, STAR_TWO, STAR_THREE, BELT_LENGTH } from '../src/scripts/core/game.js';
+import { createGame, TIMING, FACING, BLOCKED_AFTER, STAR_TWO, STAR_THREE, BELT_LENGTH, BELT_CATCHUP, BELT_MIN } from '../src/scripts/core/game.js';
 import { BLAST, blastPower, blastReach, clearRay, createAsteroid, facing, hittable, removeVoxel, voxelKey } from '../src/scripts/core/asteroid.js';
 import { createRng } from '../src/scripts/core/rng.js';
 import { MODELS } from '../src/scripts/core/models/index.js';
@@ -246,7 +246,7 @@ describe('Zielregel', () => {
 });
 
 describe('Spielablauf', () => {
-  it('Förderband: läuft nach links, füllt rechts aus der Luke nach (je mindestens ein Platz Abstand), Lücken bleiben', () => {
+  it('Förderband: läuft nach links, füllt rechts aus der Luke nach (je mindestens ein Platz Abstand), Lücken bleiben, solange genug auf dem Band liegt', () => {
     const game = createGame({ ...LEVELS[0], crystals: 0, belt: 0.2 });
     const speed = game.beltSpeed;
     expect(game.belt.map(item => item.pos)).toEqual([2.5, 3.5, 4.5, 5.5, 6.5, 7.5]);
@@ -266,6 +266,24 @@ describe('Spielablauf', () => {
     expect(game.queue.length).toBeLessThan(queued);
     expect(game.belt.at(-1).pos).toBeLessThanOrEqual(BELT_LENGTH);
     expect(waitingShips(game).map(s => s.id)).toEqual(order.filter(id => id !== taken.ship.id).slice(-waitingShips(game).length));
+  });
+
+  it('Stauband: liegt wenig auf dem Band und ist eine Plattform frei, rutschen die Schiffe hinter Lücken schnell auf', () => {
+    const game = createGame({ ...LEVELS[0], crystals: 0, belt: 0.2, slots: 5 });
+    const speed = game.beltSpeed;
+    // drei aus der Mitte nehmen → 3 auf dem Band (< BELT_MIN), 2 Plattformen frei
+    const [front, a, b, c] = game.belt.slice(0, 4);
+    for (const item of [a, b, c]) game.launch(item.ship.id);
+    const behind = game.belt[1];
+    const gap = behind.pos - front.pos;
+    expect(gap).toBeGreaterThan(1.5);
+    game.step(0.5, orbit(0));
+    expect(front.pos).toBeCloseTo(2.5 - speed * 0.5);                              // der vorderste: Bandtempo
+    expect(behind.pos - front.pos).toBeCloseTo(gap - BELT_CATCHUP * 0.5);          // dahinter: rutscht auf
+    for (let k = 0; k < 20; k++) game.step(0.1, orbit(k));
+    for (let i = 1; i < game.belt.length; i++) expect(game.belt[i].pos - game.belt[i - 1].pos).toBeGreaterThanOrEqual(1 - 1e-9);
+    // Nachschub aus der Luke ist da – danach läuft das Band wieder normal (Lücken bleiben)
+    expect(game.belt.filter(item => item.pos <= BELT_LENGTH - 0.5).length).toBeGreaterThanOrEqual(BELT_MIN);
   });
 
   it('ein Schiff fliegt auf die gewünschte freie Plattform, sonst auf die nächste freie; alle belegt → full', () => {

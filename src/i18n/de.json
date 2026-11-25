@@ -21,6 +21,7 @@
     "progress": "Fortschritt",
     "stage": "Spielfeld: Figur, Hangar und Warteschlange. Tasten 1 bis 5 starten ein Schiff, Pfeiltasten schieben die vordere Reihe.",
     "hint": "Tippe einen Flieger auf dem Band an – er fliegt auf eine freie Plattform. Er trifft nur Blöcke seiner Farbe ganz außen. Was links vom Band fällt, ist weg.",
+    "tutorial": "Klick auf die Schiffe!",
     "more": "+{count}",
     "won": "Gepoppt!",
     "allDone": "Alle Level geschafft! 🚀",

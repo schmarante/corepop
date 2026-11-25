@@ -204,7 +204,12 @@ export function createBeltView(scene, slotCount, { moreText, design = 'classic' 
       const slot = Math.round(best.x / spacing + (slotCount - 1) / 2);
       return { id: best.id, slot: Math.max(0, Math.min(slotCount - 1, slot)) };
     },
-    /** Flieger auf dem Band von links nach rechts (für die Tasten 1 … 9) */
+    /** Bildschirmpunkt (NDC) eines Fliegers auf dem Band – oder null (Tutorial-Handschuh) */
+    screenPosition(id, camera, out = new THREE.Vector3()) {
+      const item = items.get(id);
+      return item ? out.copy(item.model.group.position).project(camera) : null;
+    },
+        /** Flieger auf dem Band von links nach rechts (für die Tasten 1 … 9) */
     visibleIds(belt) {
       return belt.filter(item => item.pos <= BELT_LENGTH - 0.5).map(item => item.ship.id);
     },

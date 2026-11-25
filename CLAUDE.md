@@ -35,7 +35,10 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
 - **Förderband (seit 2026-11-24, ersetzt „Spalte = Plattform + Wischen“):** Unter dem Deck läuft ein Band mit
   `BELT_LENGTH` (8) sichtbaren Plätzen nach links (`level.belt` Plätze/s, `DEFAULT_BELT_SPEED`; `core/game.js` →
   `belt`, `queue` = Luke). Neue Flieger kommen rechts aus der Luke, je ein Platz Abstand; nimmt man einen heraus,
-  bleibt die Lücke. **Jeder Flieger auf dem Band ist antippbar** und fliegt auf **irgendeine freie Plattform**
+  bleibt die Lücke – außer im **Stauband-Fall** (2026-11-25, „Schiffe kommen nicht schnell genug nach“): Liegen weniger
+  als `BELT_MIN` (4) Flieger auf dem Band und ist eine Plattform frei, rutschen die hinteren mit `BELT_CATCHUP` (2,5
+  Plätze/s) bis auf einen Platz an den Vordermann auf; der vorderste fährt im Bandtempo. Immer aufrutschen hielt das
+  Band voll, am Ende fiel ständig einer herunter (schlauer Bot im Boss 17–67 % statt 100 %). L3 dafür `shuffle` 0,6. **Jeder Flieger auf dem Band ist antippbar** und fliegt auf **irgendeine freie Plattform**
   (bevorzugt die darüber; keine frei → wackelt). Was links ankommt, **fällt herunter und ist weg** (`drop`): Dafür hat
   jede Farbe Reserve-Munition (`level.reserve`, Standard 25 %, `DEFAULT_RESERVE` in `core/fleet.js`; Farben unter 50
   Voxeln bekommen zwei gleiche Schiffe). Fällt ein Flieger, ohne den seine Farbe nicht mehr reicht (`game.essential`
@@ -176,6 +179,10 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   Wort (`.logo-word`). Das „o“ in „pop“ ist der Spreng-Kristall in WebGL (`render/logo-gem.js`: Candy-Würfel, leicht
   durchscheinend, Klarlack, pulsiert, dreht sich), wächst nach dem Laden heraus und schiebt die „p“ auseinander, ragt
   etwas über sie; ein unsichtbares „o“ darin sorgt fürs Kopieren als „corepop“. Ohne WebGL: CSS-Quadrat.
+- **Tutorial (Level 1, bis zum ersten Start, `corepop:tutorial`):** `ui/tutorial.js` – federnder Comic-Handschuh (eigenes
+  SVG) zeigt auf den vordersten Flieger und wandert mit, Sprechblase `game.tutorial` („Klick auf die Schiffe!“). Nach
+  2,5 s ohne Antippen oder kurz vor dem Bandende pausiert das Spiel (`tutorial.paused` → `solo.js` überspringt das
+  Update) und eine Fokus-Maske (radial-gradient mit Loch) blendet ein. Ebene lässt Antippen durch. Stil `.tutorial-*`.
 - Kopfzeile: Zurück · Level · Candy-Fortschrittsbalken · Zahnrad → Optionen-Dialog (Sprache + „Über“ mit Credits aus
   `src/data/credits.js`). Spiel pausiert, solange die Optionen offen sind. Bedienhinweis nur bis zum ersten Start.
 - Hintergrund: vollflächiger, dezenter Sternenflug (`components/Starfield.astro` → `render/starfield.js`, 2D-Canvas

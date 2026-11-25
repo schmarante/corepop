@@ -21,6 +21,7 @@
     "progress": "Progress",
     "stage": "Playfield: figure, hangar and ship queue. Keys 1 to 5 launch a ship, arrow keys slide the front row.",
     "hint": "Tap a ship on the belt – it flies to a free pad. It only hits blocks of its colour on the very outside. Whatever falls off the left end is gone.",
+    "tutorial": "Tap the ships!",
     "more": "+{count}",
     "won": "Popped!",
     "allDone": "All levels done! 🚀",
