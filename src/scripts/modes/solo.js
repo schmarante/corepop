@@ -85,8 +85,20 @@ export function startSolo(root, locale) {
   const hint = createHint($('[data-hint]'));
   // Specials: je Versuch einmal; Farbwechsel wartet auf das Antippen eines Fliegers (picking)
   let picking = null;
-  const specials = createSpecials(root, { onUse: useSpecial });
-  const refreshSpecials = () => specials.update({ unlocked: specialUnlocked, used: id => !!game?.usedSpecials.has(id) });
+  const specials = createSpecials(root, {
+    onUse: useSpecial,
+    onLocked: id => toast.show(t('special.locked', { name: t(`special.${id}.name`), level: SPECIALS.find(s => s.id === id).from + 1 })),
+  });
+  /** Fortschritt bis zur Freischaltung eines Specials: geschaffte Level plus Anteil am gerade gespielten (wenn es das
+   *  nächste noch nicht geschaffte ist) – füllt sich mit jedem Treffer */
+  const specialProgress = id => {
+    const from = SPECIALS.find(s => s.id === id).from;
+    const reached = unlockedLevel();
+    if (reached >= from) return 1;
+    const current = game && index === reached ? game.destroyed / game.asteroid.total : 0;
+    return (reached + current) / from;
+  };
+  const refreshSpecials = () => specials.update({ unlocked: specialUnlocked, used: id => !!game?.usedSpecials.has(id), progress: specialProgress });
 
   function placeViews({ asteroidY, hangarY } = stage.anchors) {
     views?.asteroid.setY(asteroidY);
@@ -140,7 +152,10 @@ export function startSolo(root, locale) {
   const shipGrid = new THREE.Vector3();
   const shipInGrid = slot => views.asteroid.toGrid(views.hangar.slotPosition(slot, shipWorld), shipGrid);
 
-  const updateHud = () => hud.update({ index, destroyed: game.destroyed, total: game.asteroid.total });
+  const updateHud = () => {
+    hud.update({ index, destroyed: game.destroyed, total: game.asteroid.total });
+    refreshSpecials();   // gesperrte Specials füllen sich mit dem Fortschritt
+  };
 
   const playing = () => game && !options?.open && !dialog.open;
 

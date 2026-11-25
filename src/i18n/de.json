@@ -86,6 +86,7 @@
     }
   },
   "special": {
+    "locked": "{name} – ab Level {level}",
     "pad": {
       "name": "Plattform +1",
       "hint": "Eine Zusatz-Plattform schwebt über dem Deck – ein Platz mehr für deine Flieger."

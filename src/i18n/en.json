@@ -86,6 +86,7 @@
     }
   },
   "special": {
+    "locked": "{name} – from level {level}",
     "pad": {
       "name": "Pad +1",
       "hint": "An extra pad floats above the deck – one more spot for your ships."

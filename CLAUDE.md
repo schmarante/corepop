@@ -242,7 +242,10 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   ★★★ höchstens `STAR_THREE` (1) Fehlstart und kein Spreng-Flieger heruntergefallen. Fehlstart = gestarteter Flieger,
   der mit Munition blockiert stehen blieb (`stats.misfires`). Bestwert je Level gespeichert,
   im Sieg-Dialog (leuchten nacheinander auf) und auf den Level-Knöpfen der Startseite.
-- **Specials** (je Levelversuch einmal, `game.special(id, …)`; Leiste rechts unter der Kopfzeile, `ui/specials.js`),
+- **Specials** (je Levelversuch einmal, `game.special(id, …)`; Leiste rechts unter der Kopfzeile, `ui/specials.js`;
+  **immer sichtbar** (2026-11-25): gesperrte abgesoftet, füllen sich von unten (`--fill`) mit dem Fortschritt bis zur
+  Freischaltung – geschaffte Level plus Anteil am laufenden Level (`specialProgress` in solo.js, bei jedem Treffer);
+  bei 100 % kurzes Aufglühen (`.is-ready`); Antippen gesperrt → Toast `special.locked` „… ab Level n“),
   freigeschaltet nach Level (`SPECIALS` in `store/progress.js`): **Plattform +1** ab L3 (schwebende Zusatz-Plattform
   rechts oberhalb des Decks – eine Plattform mehr), **Farbwechsel** ab L5 (Knopf, dann
   Flieger auf dem Band antippen: bis zu 60 äußerste Blöcke anderer Farben bekommen seine Farbe, er die Schüsse dazu), **Supernova**
