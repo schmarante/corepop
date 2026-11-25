@@ -526,6 +526,19 @@ describe('Riss-Kristalle', () => {
     expect(game.detonate(crystal)).toEqual([]);
   });
 
+  it('letzter Stein ist ein Kristall: Sprengung mit leerer Würfelliste, danach gewonnen', () => {
+    // Regression: die Darstellung stürzte bei der leeren Liste ab, 'won' kam nie an – das Spiel hing
+    const game = createGame(withCrystals);
+    const crystal = game.asteroid.crystals[0];
+    for (const v of game.asteroid.voxels) if (v.alive && v !== crystal) removeVoxel(game.asteroid, v);
+    const events = game.detonate(crystal);
+    const blast = events.find(e => e.type === 'break');
+    expect(blast.voxels).toEqual([]);
+    expect(blast.energy).toEqual([]);
+    expect(game.asteroid.alive).toBe(0);
+    expect(game.step(0.016, { x: 0, y: 0, z: 40 }).map(e => e.type)).toContain('won');
+  });
+
   it('ist eine Farbe fertig, bleiben ihre Schiffe stehen – gestartet blockieren sie die Plattform für immer', () => {
     const game = createGame({ ...LEVELS[0], slots: 2 });
     const ship = game.belt[0].ship;

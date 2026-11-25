@@ -108,6 +108,7 @@ export function startSolo(root, locale) {
       outgoing.push({ views, game });
     }
     game = createGame(LEVELS[i]);
+    if (import.meta.env.DEV) window.__game = game;   // nur Dev-Server: für Tests im Headless-Browser (Spielzustand herstellen)
     // Boss-Level: Hintergrund wechselt in die Boss-Stimmung (render/starfield.js liest data-boss), die Figur glitcht
     document.documentElement.dataset.boss = game.level.boss ? '1' : '';
     sound.music(game.level.boss ? 'boss' : 'game');
@@ -174,8 +175,10 @@ export function startSolo(root, locale) {
     refreshSpecials();
   }
 
+  // Jedes Ereignis einzeln abgesichert: Wirft die Darstellung bei einem (z. B. Sprengung des letzten Steins – leere
+  // Würfelliste), laufen die folgenden trotzdem – sonst ging 'won' verloren und das Spiel hing für immer.
   function handle(events) {
-    for (const e of events) {
+    for (const e of events) try {
       if (e.type === 'launch') {
         views.hangar.add(e.slot, e.ship, views.belt.take(e.ship));
         sound.play('launch', e.ship.special === 'bomber');
@@ -226,6 +229,8 @@ export function startSolo(root, locale) {
       } else if (e.type === 'free') views.hangar.remove(e.slot);
       else if (e.type === 'won') won();
       else if (e.type === 'lost') lost(e);
+    } catch (error) {
+      console.error(`Ereignis ${e.type}:`, error);
     }
   }
 

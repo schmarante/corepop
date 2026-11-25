@@ -23,6 +23,7 @@
 // Glanz statt Kugeln, Trümmer und Spritzer einfache Würfel (taumeln – flache Flächen würden von der Seite verschwinden).
 import * as THREE from 'three';
 import { COLORS } from '../core/colors.js';
+import { BLAST as BLAST_COLOR_ID } from '../core/asteroid.js';
 import { candyBox, candyMaterial, voxelColor } from './asteroid-view.js';
 
 const PARTICLES_PER_HIT = 7;
@@ -272,6 +273,7 @@ export function createEffectsView(scene, camera) {
      * `surface`: der restliche Körper für Kollisionen (asteroid-view: collide, penetration, surfaceVelocity) – optional
      */
     shatter(voxels, matrixWorld, size, body, at, energy, mass, surface = null) {
+      if (!voxels.length) return;   // letzter Stein war der Kristall: nichts fliegt weg (ein leeres Mesh hätte keine Instanzfarben)
       const box = candyBox(size);
       const material = candyMaterial();
       const mesh = new THREE.InstancedMesh(box, material, voxels.length);
@@ -457,6 +459,7 @@ export function createEffectsView(scene, camera) {
      * Bruchstücks – alles nach außen (`outward` = Weltrichtung weg vom Körper, mit Streuung).
      */
     explode(position, outward, colorIds, size) {
+      if (!colorIds.length) colorIds = [BLAST_COLOR_ID];   // nichts weggesprengt (letzter Stein): Trümmer in Spreng-Farbe
       const flash = new THREE.Mesh(flashGeometry, additive(0xffd6f5));
       flash.position.copy(position);
       const ring = new THREE.Mesh(ringGeometry, additive(BLAST_COLOR));
