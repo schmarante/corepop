@@ -199,14 +199,15 @@ html {
 .tutorial-pointer {
   position: absolute;
   left: var(--x);
-  top: calc(var(--y) - 30px);
+  top: calc(var(--y) - 22px);
   display: flex;
   flex-direction: column;
   align-items: center;
   translate: -50% -100%;
 }
 .tutorial-glove {
-  width: 54px;
+  width: 72px;
+  margin-top: -6px;
   filter: drop-shadow(0 4px 6px rgb(0 0 0 / 0.45));
   transform-origin: 50% 100%;
   animation: tutorial-bounce 0.9s cubic-bezier(.3, 0, .3, 1) infinite;

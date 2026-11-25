@@ -9,15 +9,26 @@ const IDLE = 2.5;       // s ohne Antippen → Pause + Fokus-Maske
 const PAUSE_AT = 1.4;   // Bandplatz: spätestens hier pausieren, damit der Flieger nicht herunterfällt
 const FADE = 300;       // ms
 
-/** Handschuh (eigener Entwurf): weißer Comic-Handschuh, Zeigefinger nach unten, Bündchen in Spreng-Magenta */
-const GLOVE = `<svg viewBox="0 0 64 84" aria-hidden="true">
-  <g stroke="#1b1d33" stroke-width="3" stroke-linejoin="round">
-    <rect x="13" y="4" width="38" height="16" rx="7" fill="#ff2bd6"/>
-    <path d="M19 12h26" stroke="#ffd6f5" stroke-width="2.5" stroke-linecap="round"/>
-    <path d="M14 22c0-3 3-5 6-5h24c3 0 6 2 6 5v17c0 7-5 12-12 12H26c-7 0-12-5-12-12z" fill="#fff"/>
-    <path d="M14 30c-5 0-8 3-8 7s3 7 8 7" fill="#fff"/>
-    <rect x="26" y="40" width="13" height="38" rx="6.5" fill="#fff"/>
-    <path d="M20 44v4M44 44v3" stroke-linecap="round"/>
+/** Handschuh (eigener Entwurf): pummelige Comic-Zeigehand – Zeigefinger, daneben drei eingeklappte Finger als Wülste,
+ *  Daumen quer davor, gerolltes Bündchen; dunkle Kontur + heller Außenrand (hebt sich vom All ab). Gezeichnet zeigt sie
+ *  nach oben, gedreht tippt sie von rechts oben schräg nach unten; die Fingerspitze liegt unten in der Mitte. */
+const GLOVE = `<svg viewBox="0 0 120 130" aria-hidden="true">
+  <defs>
+    <g id="corepop-glove" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M26 62c0-6 5-10 11-10h42c8 0 13 6 13 13v18c0 12-9 20-21 20H45c-11 0-19-8-19-19z" fill="#fff"/>
+      <rect x="50" y="44" width="17" height="27" rx="8.5" fill="#eef0fb"/>
+      <rect x="65" y="49" width="15.5" height="24" rx="7.8" fill="#eef0fb"/>
+      <rect x="78.5" y="56" width="14" height="21" rx="7" fill="#eef0fb"/>
+      <rect x="31" y="16" width="22" height="56" rx="11" fill="#fff"/>
+      <path d="M30 70c-9-3-17 1-17 8 0 6 6 9 13 8l16-2c5-1 7-5 5-9-2-3-6-4-10-3z" fill="#fff"/>
+      <rect x="35" y="98" width="56" height="22" rx="9" fill="#fff"/>
+    </g>
+  </defs>
+  <g transform="rotate(200 60 65)">
+    <use href="#corepop-glove" stroke="#fff" stroke-width="11"/>
+    <use href="#corepop-glove" stroke="#1b1d33" stroke-width="4"/>
+    <path d="M41 109h44" stroke="#c9cde3" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M37 27v16" stroke="#dfe3f5" stroke-width="3" stroke-linecap="round"/>
   </g>
 </svg>`;
 
