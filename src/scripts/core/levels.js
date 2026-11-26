@@ -23,23 +23,23 @@
 export const LEVELS = [
   { model: { type: 'football' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 5, belt: 0.25, shuffle: 0, crystals: 2, seed: 'corepop-football' },
   { model: { type: 'heart' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['o']], spin: 0.35, ships: { 100: 2, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.9, crystals: 2, seed: 'corepop-heart' },
-  { model: { type: 'basketball' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.25, shuffle: 0.6, crystals: 2, seed: 'corepop-basketball' },
+  { model: { type: 'basketball' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.2, shuffle: 0.3, crystals: 2, seed: 'corepop-basketball' },
   { model: { type: 'poop' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-poop' },
   // Boss
-  { model: { type: 'pirateShip' }, radius: 26, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-pirate-ship' },
+  { model: { type: 'pirateShip' }, radius: 26, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.2, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-pirate-ship' },
   { model: { type: 'rocket' }, radius: 11, skin: 1, core: [['y'], ['g', 'p'], ['o']], spin: 0.35, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 1.2, crystals: 2, seed: 'corepop-rocket' },
   { model: { type: 'watermelon' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-watermelon' },
   { model: { type: 'cherries' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-cherries' },
   { model: { type: 'avocado' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['o']], spin: 0.3, ships: { 50: 2, 100: 1 }, slots: 3, belt: 0.25, shuffle: 1.2, crystals: 2, seed: 'corepop-avocado' },
   // Boss
-  { model: { type: 'tank' }, radius: 24, skin: 1, core: [['y'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, boss: true, seed: 'corepop-tank' },
+  { model: { type: 'tank' }, radius: 24, skin: 1, core: [['y'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.2, shuffle: 0.3, crystals: 3, boss: true, seed: 'corepop-tank' },
   { model: { type: 'popsicle' }, radius: 9, skin: 1, core: [['y'], ['b', 'g']], spin: 0.35, ships: { 50: 2, 100: 1 }, slots: 3, belt: 0.3, shuffle: 0, crystals: 2, seed: 'corepop-popsicle' },
   { model: { type: 'panda' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-panda' },
   { model: { type: 'teddy' }, radius: 8, skin: 1, core: [['y'], ['b', 'p'], ['g'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-teddy' },
-  { model: { type: 'eyes' }, radius: 9, skin: 1, core: [['y'], ['g', 'p'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-eyes' },
+  { model: { type: 'eyes' }, radius: 9, skin: 1, core: [['y'], ['g', 'p'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, reserve: 0.3, crystals: 2, seed: 'corepop-eyes' },
   // Boss
-  { model: { type: 'mask' }, radius: 24, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 2, boss: true, seed: 'corepop-mask' },
-  { model: { type: 'chicken' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 3, seed: 'corepop-chicken' },
+  { model: { type: 'mask' }, radius: 24, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.22, ships: { 100: 1, 250: 1 }, slots: 5, belt: 0.25, shuffle: 0.3, reserve: 0.35, crystals: 2, boss: true, seed: 'corepop-mask' },
+  { model: { type: 'chicken' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 5, belt: 0.25, shuffle: 0.6, crystals: 3, seed: 'corepop-chicken' },
   { model: { type: 'mushroom' }, radius: 9, skin: 1, core: [['y'], ['b', 'p'], ['g']], spin: 0.3, ships: { 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-mushroom' },
   { model: { type: 'chest' }, radius: 10, skin: 1, core: [['g'], ['b', 'p'], ['o'], ['r']], spin: 0.3, ships: { 50: 1, 100: 1 }, slots: 4, belt: 0.3, shuffle: 0.6, crystals: 2, seed: 'corepop-chest' },
 ];

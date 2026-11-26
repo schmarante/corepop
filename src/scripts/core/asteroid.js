@@ -256,6 +256,36 @@ export function clearRay({ grid, bounds }, v, [dx, dy, dz]) {
   }
 }
 
+/** Schrittweite (Voxel) beim Abtasten einer Sichtlinie – klein genug, dass keine Ecke durchrutscht */
+const SIGHT_STEP = 0.3;
+
+/**
+ * Sieht ein Punkt `from` (Raster) die Fläche `n` von `v`? Die Fläche muss zu ihm zeigen (mindestens `min`, Skalarprodukt
+ * von Normale und Richtung), und auf der geraden Linie von der Flächenmitte zu ihm liegt kein Voxel – nicht um die Ecke.
+ */
+export function sees({ grid, bounds }, v, [nx, ny, nz], from, min = 0) {
+  const sx = v.x + nx * 0.5;
+  const sy = v.y + ny * 0.5;
+  const sz = v.z + nz * 0.5;
+  const dx = from.x - sx;
+  const dy = from.y - sy;
+  const dz = from.z - sz;
+  const length = Math.hypot(dx, dy, dz) || 1;
+  if ((nx * dx + ny * dy + nz * dz) / length < min) return false;
+  const ux = dx / length;
+  const uy = dy / length;
+  const uz = dz / length;
+  const limit = bounds + 1;
+  for (let t = SIGHT_STEP; t < length; t += SIGHT_STEP) {
+    const x = sx + ux * t;
+    const y = sy + uy * t;
+    const z = sz + uz * t;
+    if (Math.abs(x) > limit || Math.abs(y) > limit || Math.abs(z) > limit) return true;
+    if (grid.has(voxelKey(Math.round(x), Math.round(y), Math.round(z)))) return false;
+  }
+  return true;
+}
+
 /** Ist `v` überhaupt treffbar (irgendeine freie Fläche mit freier Linie nach draußen)? */
 export const hittable = (asteroid, v) => openNormals(asteroid, v).some(n => clearRay(asteroid, v, n));
 

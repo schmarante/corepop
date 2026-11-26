@@ -30,12 +30,18 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   (sonst überdecken sie die Grundfarbe). Prüfen per Text-Vorderansicht (Voxel mit größtem z je x/y) oder /dev/modelle/. Haut = äußerste `skin` Voxel + alles von außen
   schräg Sichtbare. **Nur eigene Designs** – keine erkennbaren fremden Marken/Designs, auch nicht verpixelt.
 - Der Körper dreht sich um die Y-Achse und taumelt/schwebt dabei langsam (rein optisch). Je weniger Würfel übrig sind,
-  desto langsamer dreht er (`game.spin`, bis `SPIN_MIN` = 35 % – er „verliert Masse“; Spiel und Bots gleich). Ziehen dreht zusätzlich; beim Loslassen dreht er mit dem Schwung weiter und läuft weich aus
-  (`ui/drag-rotate.js` misst die Wischgeschwindigkeit → `asteroid.fling`, Reibung `FLING_FRICTION`; Anfassen hält an).
+  desto langsamer dreht er (`game.spin`, bis `SPIN_MIN` = 35 % – er „verliert Masse“; Spiel und Bots gleich). **Ziehen dreht frei in
+  alle Richtungen** (seit 2026-11-26, Trackball: waagerecht um die Hochachse, senkrecht um die Querachse; Aufbau
+  `tilt → grab → spin` in `asteroid-view.js`). Anfassen hält Taumeln und Eigendrehung an (`hold`); beim Loslassen
+  dreht er mit dem Schwung weiter (`fling(x, y)`, Reibung `FLING_FRICTION`), danach setzen Taumeln und Eigendrehung
+  weich wieder ein (`calm`, `CALM_RATE`).
 - **Förderband (seit 2026-11-24, ersetzt „Spalte = Plattform + Wischen“):** Unter dem Deck läuft ein Band mit
   `BELT_LENGTH` (8) sichtbaren Plätzen nach links (`level.belt` Plätze/s, `DEFAULT_BELT_SPEED`; `core/game.js` →
   `belt`, `queue` = Luke). Neue Flieger kommen rechts aus der Luke, je ein Platz Abstand; nimmt man einen heraus,
-  bleibt die Lücke – außer im **Stauband-Fall** (2026-11-25, „Schiffe kommen nicht schnell genug nach“): Liegen weniger
+  bleibt die Lücke – **Leerlauf** (2026-11-26): Sind nach dem ersten Start alle Plattformen frei, läuft das Band
+  `BELT_RUSH` (3×) schneller, weich ein/aus (`game.speed`); die Bots merken davon kaum etwas (ihr Hangar ist fast nie
+  leer), gedacht gegen das Warten im echten Spiel. Schussrate `fireEvery` 0,03 s (vorher 0,06; ändert die Levelzeit
+  nicht – gemessen –, fühlt sich aber knackiger an). Sonst bleibt die Lücke – außer im **Stauband-Fall** (2026-11-25, „Schiffe kommen nicht schnell genug nach“): Liegen weniger
   als `BELT_MIN` (4) Flieger auf dem Band und ist eine Plattform frei, rutschen die hinteren mit `BELT_CATCHUP` (2,5
   Plätze/s) bis auf einen Platz an den Vordermann auf; der vorderste fährt im Bandtempo. Immer aufrutschen hielt das
   Band voll, am Ende fiel ständig einer herunter (schlauer Bot im Boss 17–67 % statt 100 %). L3 dafür `shuffle` 0,6. **Jeder Flieger auf dem Band ist antippbar** und fliegt auf **irgendeine freie Plattform**
@@ -53,14 +59,26 @@ Namen und Levels sind eigene Ideen. Keine Assets, Namen oder Levels aus bestehen
   starten), mittlere Spalten hingen fest, Wischen wirkte wie Strafe, schwer lesbar. Davor: Parkdeck (UI-Reihe zu viel).
 - Schiffsklassen 50/100/250 (`SHIP_CLASSES`, `MIN_AMMO` = 50 in `core/fleet.js`): Kleinere lohnen nicht, ein Rest
   unter 50 fliegt im vorigen Schiff derselben Farbe mit (nur Farben mit < 50 Blöcken insgesamt ergeben ein kleineres).
+- **Sichtregel (seit 2026-11-26, „nicht um die Ecke schießen“):** Ein Schiff trifft nur Flächen, die es **sieht** – sie
+  zeigen zu ihm (`SEE_MIN`) und auf der geraden Linie Flächenmitte → Schiff liegt kein Voxel (`sees` in
+  `core/asteroid.js`) –, die zur Kamera zeigen (`CAMERA_MIN`: **nie auf die Rückseite**, der Spieler sieht jeden Treffer)
+  **und** die ganz außen liegen (siehe unten). Was nicht passt, muss man zudrehen. Schüsse
+  fliegen gerade. Sieht es gerade nichts, aber seine Farbe liegt irgendwo ganz außen, **wartet** es (`entry.aiming`,
+  kein Fehlstart, kein „blockiert“); **blockiert** (`entry.blocked`, rot, Fehlstart) ist es nur, wenn Drehen nicht hilft.
+  Verloren („jam“) weiterhin nur, wenn alle Plattformen blockiert sind. Bots drehen die Figur dafür (`simulate.js`:
+  der schlaue dreht eine vorstehende Fläche direkt zum Schiff – auf die Winkelhalbierende Schiff/Kamera zu zielen war
+  viel schlechter –, höchstens `AIM_RATE`; der zufällige wischt ab und zu ziellos).
+  Balance danach (8–12 Seeds): schlau meist 75–100 %; angepasst: L3 Band 0,2 + shuffle 0,3, L5/L10 Band 0,2 (L10
+  shuffle 0,3), L14 reserve 0,3, L15 shuffle 0,3 + reserve 0,35, L16 5 Plattformen. Beim Huhn ist der schlaue Bot
+  kaum besser als der zufällige (wartet zu lange ab, unverzichtbare fallen) – Bot-Schwäche, nicht das Level.
+  Achtung: `reserve` ändert die Band-Reihenfolge (Zufall) – Messungen mit wenigen Seeds schwanken stark.
 - Ein Schiff im Slot schießt automatisch nur auf Voxel seiner Farbe, die **ganz außen** liegen: vor einer freien Fläche
   liegt in gerader Linie nichts mehr bis nach draußen (`clearRay` in `core/asteroid.js` – 3D-Gegenstück zu „erster Pixel
   einer Reihe“). Wände eines Lochs zählen nicht → man trägt Schicht für Schicht ab, statt dass Tunnel alle Farben
   freilegen. Festfahren geometrisch ausgeschlossen: der äußerste Voxel je Achsenrichtung ist immer treffbar.
-  Geschossen wird mit **Lenkgeschossen** (Bézier-Bogen außen herum), die genau durch diese Fläche eintreten
-  (`shot.normal`). Flächen, die zur Kamera oder zum Schiff zeigen (`FACING`), kommen zuerst dran – die Drehung bestimmt
-  die Reihenfolge, nicht ob getroffen wird. (Früher: nur Flächen zur Kamera + `PATIENCE`-Notlösung; davor gerade
-  Schussbahn → Soft-Lock.)
+  (Früher: Lenkgeschosse im Bogen außen herum, die Drehung bestimmte nur die Reihenfolge – verworfen, weil um die Ecke
+  geschossen wurde. Davor gerade Schussbahn ohne freie Drehung → Soft-Lock; mit freier Drehung ist jeder Block ganz
+  außen erreichbar.)
 - **Hangar = Engpass (Knobel-Kern, seit 2026-11-24):** Ein Schiff bleibt auf seiner Plattform, bis die Munition leer
   ist. Findet es kein Ziel ganz außen, steht es **blockiert** da (ab `BLOCKED_AFTER` = 0,6 s: kippt zur Seite, Triebwerk
   aus, rote Zahl, roter Ring – `render/hangar-view.js`) und belegt die Plattform, bis seine Farbe außen auftaucht.
@@ -210,11 +228,17 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
 - **Seitenwechsel ohne Neuladen** (Astro `<ClientRouter />` in `Base.astro`), damit die Musik durchläuft: Sternenflug
   `transition:persist`, Komponenten-Skripte starten bei `astro:page-load` und räumen bei `astro:before-swap` auf
   (`startSolo` und `startLogoGem` geben eine Aufräum-Funktion zurück – WebGL-Kontexte nicht stapeln).
-- **Musik** (Blech-Synth, Pulswelle, Slap-Bass, Streicher, Echo), eigene Melodien: `menu` (Startseite, getragen wie ein Abspann, 84 bpm), `game` (treibend, 124 bpm), `boss`
-  (Endkampf in d-Moll, 108 bpm, vier Teile: Galopp-Bass + Pauken + tiefe Blech-Schläge → Blech-Thema → Es-Dur-Akkord
-  als Schauder → Höhepunkt mit vollem Schlagzeug, Thema hoch und tief, Becken). Notenschrift in `music.js` („D5:4 r:2 | …“, Längen in
-  16teln, jeder Takt = 16 – Test `tests/music.test.js`). Stückwechsel blenden.
-  **Musik = fertige MP3s** in `public/audio/` (menu/game/boss, 128 kbit/s, zusammen ~1,5 MB), geladen und als
+- **Musik = EDM** (seit 2026-11-26, die orchestrale Fassung kam nicht gut an): Four-on-the-floor, Clap, Hats, Sub +
+  Reese-Bass, Supersaw-Akkorde/-Lead, Plucks, Riser + Snare-Wirbel im Build-up, Impact auf dem Drop, Sidechain-Pumpen
+  (`PUMP_DEPTH`). Stücke als `form` (ein Buchstabe je Takt) + `layers` je Abschnitt + `leads`: `game` (128 bpm, a-Moll,
+  Synkopen-Hook 3+3+2 – **der Hook gefällt dem User, beibehalten**), `menu` (Variante desselben Hooks, 100 bpm: Intro mit Pluck/Fläche/Arpeggio gefiel, im Melodie-Teil dieselben Spuren und Akkord-Stöße wie im Drop des Spiel-Stücks – `patterns` je Abschnitt),
+  `boss` (140 bpm, d-Moll, verzerrter Bass, Es-Dur-Break, zweiter Drop mit Oktave). Notenschrift „E5:3 r:2 | …“ (16tel,
+  jeder Takt = 16 – Test `tests/music.test.js`). Mix auf Handy-Lautsprecher achten (Mitten nicht zu leise – messen).
+  **Sternenflug im Takt:** `beatMap(song)` (Kick 1, Drop 1,6, Snare-Wirbel) → `music.beat()` → `audio/beat.js`
+  (ohne Tone.js) → `starfield.js` (Sterne größer/heller, Satz nach vorn; im Boss stärker + Nebel flammt auf).
+  Export ohne Klicken: Dev-Seite `window.__exportWav(name)` headless (Chromium mit `--remote-debugging-pipe`).
+  Die MP3-Encoder-Verzögerung gleicht der Decoder über den LAME-Header aus (gemessen: 0 Samples Versatz).
+  **Musik = fertige MP3s** in `public/audio/` (`<name>-v<MUSIC_VERSION>.mp3`, `musicFile` – Version im Dateinamen, ein `?v=` reichte gegen alte Caches nicht; 128 kbit/s, zusammen ~2,2 MB), geladen und als
   `Tone.Player`-Schleife gespielt; die übrigen Stücke werden danach im Hintergrund geladen. Geschichte: live synthetisiert
   kostete ~25 % eines Desktop-Kerns (Galaxy S20 FE: Rauschen, Aussetzer); im Browser vorab gerendert dauerte es auf dem
   Handy ~20 s bis zum ersten Ton. **Nahtlose Schleife trotz MP3:** Die Dateien haben `MUSIC_PAD` (0,5 s) Rand – davor
@@ -223,12 +247,7 @@ tests/       Vitest: core.test.js (Logik inkl. „jedes Level ist mit unbegrenzt
   (geprüft: Naht = Kodierrauschen). **Musik ändern:** `/dev/musik/` (Quelle „live gerendert“ zum Vorhören) → „Alle
   exportieren“ (WAVs) → `scripts/encode-music.sh ~/Downloads` (braucht `lame`) → `MUSIC_VERSION` in music.js erhöhen.
   Live bleiben nur die Effekte. Handys (`pointer: coarse`): `latencyHint: 'balanced'`.
-  **Epische Schicht** (2026-11-24): Chor (Formant-Filter), Hörner (Thema eine Oktave tiefer, eigener einstimmiger Synth),
-  Streicher-Ostinato, Impacts, Becken-Swells, Hall 4,2 s – je Stück über `choir`, `horns`, `ostinato`, `hits`, `swells`
-  in `SONGS`. Gerenderte Stücke werden auf Spitze 1 normalisiert (`PEAK`). Renderzeit beachten: PolySynth-Stimmen und
-  Dopplungen im Blech-PolySynth sind teuer (Spiel-Stück Desktop ~10 s – betrifft nur noch den Export). Snare = Rauschen
-  (Bandpass) + kurzer Fell-Schlag, Schlagzeug nur zu 25 % in den großen Hall (voll klang die Snare wie Zischen).
-  Vorhören + A/B: `/dev/musik/`.
+  Gerenderte Stücke werden auf Spitze 1 normalisiert (`PEAK`). Vorhören: `/dev/musik/`.
   Musik, Effekte und Start nutzen den festgehaltenen Echtzeit-Kontext – während `Tone.Offline` zeigt `Tone.getContext()`
   auf den Offline-Kontext (sonst „different audio context“, Musik blieb stumm).
 - **Effekte** (`sfx.js`): Laser (Pulswellen-„Pju“, gedrosselt), Treffer-Plopp mit Tonhöhe je Blockfarbe (pentatonisch),

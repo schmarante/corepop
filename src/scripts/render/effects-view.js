@@ -61,8 +61,6 @@ const BLAST_COLOR = 0xff2bd6;
 const SHOT_RADIUS = 0.15;   // Welteinheiten – Dicke eines Schusses (früher 0,15: wirkte wie ein Tropfen)
 const TRAIL = 1.8;           // Welteinheiten – maximale Länge der Leuchtspur hinter einem Schuss
 const TRAIL_SPAN = 0.12;     // Anteil der Flugbahn, den die Leuchtspur abdeckt
-const CURVE_MIN = 2.5;       // Welteinheiten – so weit vor der Eintrittsfläche liegt der Bogenpunkt mindestens …
-const CURVE_SHARE = 0.55;    // … bzw. dieser Anteil der Entfernung Schiff → Ziel (weite Schüsse: weiter Bogen)
 const UP = new THREE.Vector3(0, 1, 0);
 
 /** Punkt auf einer quadratischen Bézierkurve p0 → (p1) → p2 bei t */
@@ -517,11 +515,10 @@ export function createEffectsView(scene, camera) {
       for (const shot of activeShots) {
         const s = shots.get(shot.id);
         if (!s) continue;
-        // Lenkgeschoss: Bogen (quadratische Bézierkurve) vom Start über einen Punkt vor der Eintrittsfläche ins Ziel –
-        // fliegt außen herum und trifft die Fläche von vorn, nie durch den Körper
+        // gerade Schussbahn vom Schiff ins Ziel – die Spiellogik schießt nur auf Flächen, die das Schiff sieht
+        // (core/asteroid.js → sees), nicht um die Ecke. (Früher: Lenkgeschoss im Bogen außen herum.)
         aim(shot, target, normal);
-        const reach = Math.max(CURVE_MIN, s.start.distanceTo(target) * CURVE_SHARE);
-        control.copy(target).addScaledVector(normal, reach);
+        control.lerpVectors(s.start, target, 0.5);
         const u = Math.min(1, shot.t);
         bezier(s.mesh.position, s.start, control, target, u);
         s.mesh.scale.setScalar(Math.min(1, 0.2 + shot.t * 4));   // wächst aus der Schiffsspitze heraus

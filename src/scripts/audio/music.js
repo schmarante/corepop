@@ -1,26 +1,32 @@
-// Musik: Blech-Synths, Pulswellen-Lead, Slap-Bass, Streicher-Fläche, Drumcomputer und Echo. Eigene Kompositionen.
+// Musik: EDM aus eigenen Synths – Four-on-the-floor-Kick, Clap, Hi-Hats, Sub- und Reese-Bass, Supersaw-Akkorde und
+// -Lead, Plucks, Flächen, Riser und Snare-Wirbel im Build-up, Impact auf dem Drop. Alles Melodische „pumpt“ mit der
+// Kick (Sidechain). Eigene Kompositionen.
 //
 // Drei Stücke (SONGS):
-//   menu  Startseite – getragen und feierlich wie ein Abspann (Blech-Melodie, Marsch-Trommel)
-//   game  im Spiel – treibend, gut gelaunt (Achtel-Bass, Arpeggio, Pulswellen-Melodie)
-//   boss  Boss-Level – Endkampf in Moll: Galopp-Bass, Pauken, Becken, tiefe Blech-Schläge, steigert sich bis zum
-//         Höhepunkt (siehe dort)
+//   menu  Startseite – der Hook des Spiel-Stücks als ruhige Variante (100 bpm, ohne Drop)
+//   game  im Spiel – treibender Drop mit Synkopen-Hook, Groove, Break, Build-up (128 bpm, a-Moll)
+//   boss  Boss-Level – härter und schneller (140 bpm, d-Moll): Intro mit rollendem Bass, Drop mit verzerrtem Bass,
+//         düsterer Break mit Es-Dur (neapolitanisch), Build-up, zweiter Drop mit dem Hook eine Oktave höher
 //
-// Epische Schicht (optional je Stück): Chor („Aah“, `choir: [von, bis)` in Takten), Streicher-Ostinato in 16teln
-// (`ostinato: { from, to, pattern }` – R Grundton, F Quinte, O Oktave), Impacts auf Abschnittsanfängen (`hits`: Takte),
-// Becken-Swells, die einen Takt lang in einen Abschnitt hineinschwellen (`swells`: Takte), Hörner = Blech-Thema eine
-// Oktave tiefer gedoppelt (`horns`).
+// Aufbau eines Stücks:
+//   form    ein Buchstabe je Takt (Abschnitt), z. B. 'DDDDBBBBUUUU'
+//   layers  je Buchstabe die Spuren, die dort spielen (siehe LAYERS)
+//   chords  Akkord je Takt (läuft reihum)
+//   leads   Melodien als Notenfolge „E5:3 A5:2 r:2 …“ (Länge in 16teln, r = Pause, | nur zur Lesbarkeit), Stimme
+//           `lead` (Supersaw) oder `pluck`, ab Takt `bar`, optional `octave` (zusätzlich eine Oktave höher gedoppelt)
+//   hits    Takte mit Impact + Becken (Drop-Anfang)
+//   arp/stab  Muster (16 Schritte) für Arpeggio bzw. Akkord-Stöße; `patterns: { Buchstabe: { arp, stab } }` je Abschnitt
+// Ein Build-up (Spur `build`) wirbelt die Snare immer dichter, ein Riser steigt über alle seine Takte, und im letzten
+// Schlag davor ist alles still bis auf den Riser – dann kommt der Drop.
 //
-// Ein Sequenzer (16tel-Schleife) liest die Stücke: Akkorde je Takt, Bass- und Schlagzeugmuster je Takt
-// (16 Zeichen; Listen laufen reihum), Melodien als Notenfolge „D5:4 G5:2 r:2 …“ (Länge in 16teln, r = Pause, | nur zur Lesbarkeit).
 // Die Stücke werden am Rechner offline gerendert und als MP3 mitgeliefert (public/audio/, siehe createMusic und
-// renderForExport); im Spiel wird nur geladen und als Schleife abgespielt.
-// Wechsel zwischen Stücken: kurz ausblenden, umschalten, einblenden – nichts bricht hart ab.
+// renderForExport); im Spiel wird nur geladen und als Schleife abgespielt. Wechsel zwischen Stücken: kurz ausblenden,
+// umschalten, einblenden – nichts bricht hart ab. Den Takt liefert `beat()` (Sternenflug pulsiert mit der Kick).
 
-/** n gleiche Takte */
-const bars = (n, pattern) => Array.from({ length: n }, () => pattern);
+/** Spuren eines Abschnitts (Namen in `layers`) */
+export const LAYERS = ['kick', 'clap', 'hat', 'open', 'bass', 'roll', 'long', 'stab', 'pad', 'arp', 'build'];
 
-/** Akkorde: Grundton (Bass, Oktave 2) und Streicher-Lage */
+/** Akkorde: Grundton (Bass, Oktave 2) und Lage der Flächen */
 const CHORDS = {
   C: { root: 36, pad: [60, 64, 67] },
   Bb: { root: 34, pad: [58, 62, 65] },
@@ -36,82 +42,126 @@ const CHORDS = {
 };
 
 export const SONGS = {
+  // Variante des Spiel-Hooks: dieselbe Melodie und Akkorde, ruhiger – erst als Pluck über Fläche und Arpeggio, dann
+  // als Lead mit derselben Begleitung wie im Drop des Spiel-Stücks
   menu: {
-    bpm: 80,
-    bars: 8,
-    choir: [0, 8],
-    horns: true,
-    hits: [0, 4],
-    swells: [0, 4],
-    chords: ['C', 'Bb', 'F', 'C', 'Am', 'F', 'G', 'G'],
-    bass: ['R.......F.......'],
-    bassLength: 7,
-    drums: {
-      kick: ['x.......x.......'],
-      snare: ['....x.......x...', '....x.......x...', '....x.......x...', '....x.......x...', '....x.......x...', '....x.......x...', '....x.......x...', '....x.......xxxx'],
-      hat: ['..x...x...x...x.'],
+    bpm: 100,
+    form: 'CCCCCCCCMMMMMMMM',
+    layers: {
+      C: 'kick open pad arp long',
+      M: 'kick clap hat open bass stab',   // wie der Drop im Spiel-Stück
     },
-    pad: true,
+    chords: ['Am', 'F', 'C', 'G'],
+    arp: '0.2.1.3.0.2.1.3.',
+    stab: '..x.....x.x.....',
+    // Melodie-Teil: Spuren und Akkord-Stöße genau wie im Drop des Spiel-Stücks (passen zu den Synkopen des Hooks)
+    patterns: { M: { stab: '..x...x...x..x.x' } },
+    kick: -9,   // leiser als im Spiel
+    hits: [],
     leads: [
-      { bar: 0, voice: 'brass', notes: 'G4:4 C5:4 D5:2 E5:6 | F5:4 D5:4 Bb4:4 C5:4 | A4:6 C5:2 F5:8 | E5:4 D5:2 C5:2 G4:8 | A4:4 C5:4 E5:4 A5:4 | G5:6 F5:2 E5:4 C5:4 | D5:4 E5:2 F5:2 G5:4 B4:4 | D5:12 r:4' },
+      { bar: 0, voice: 'pluck', notes: 'E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 E5:4 C5:4 | E5:3 E5:3 G5:2 A5:2 G5:2 E5:2 G5:2 | D5:3 D5:3 B4:2 D5:4 r:4 | E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 A5:4 G5:4 | E5:3 G5:3 C6:2 B5:2 A5:2 G5:2 E5:2 | D5:4 G5:4 B5:8' },
+      { bar: 8, voice: 'lead', notes: 'E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 E5:4 C5:4 | E5:3 E5:3 G5:2 A5:2 G5:2 E5:2 G5:2 | D5:3 D5:3 B4:2 D5:4 r:4 | E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 A5:4 G5:4 | E5:3 G5:3 C6:2 B5:2 A5:2 G5:2 E5:2 | D5:4 G5:4 B5:8' },
     ],
   },
   game: {
-    bpm: 124,
-    bars: 16,
-    choir: [8, 16],
-    horns: true,
-    ostinato: { from: 8, to: 16, pattern: 'RRFRRRFROROFRRFR' },
-    hits: [0, 8],
-    swells: [0, 8],
-    chords: ['G', 'D', 'Em', 'C', 'G', 'D', 'C', 'D'],
-    bass: ['R.O.R.O.R.O.F.O.'],
-    bassLength: 1,
-    drums: {
-      kick: ['x.....x.x.......'],
-      snare: ['....x.......x...', '....x.......x...', '....x.......x...', '....x.....x.xxxx'],
-      hat: ['x.x.x.x.x.x.x.x.'],
+    bpm: 128,
+    form: 'DDDDDDDDGGGGGGGGBBBBUUUU',
+    layers: {
+      D: 'kick clap hat open bass stab',
+      G: 'kick clap hat open bass stab arp',
+      B: 'pad arp long',
+      U: 'kick pad arp build',
     },
-    pad: true,
-    arp: true,
+    chords: ['Am', 'F', 'C', 'G'],
+    arp: '0120312031201203',
+    stab: '..x...x...x..x.x',
+    hits: [0, 8],
     leads: [
-      { bar: 0, voice: 'pulse', notes: 'D5:2 G5:2 B5:4 A5:2 G5:2 D5:4 | F#5:4 E5:2 D5:2 A4:8 | B4:2 E5:2 G5:4 F#5:2 E5:2 B4:4 | C5:4 E5:4 G5:4 E5:4 | D5:2 G5:2 B5:4 D6:4 B5:4 | A5:6 F#5:2 D5:8 | E5:2 G5:2 C6:4 B5:2 A5:2 G5:4 | F#5:4 A5:4 D6:8' },
-      { bar: 8, voice: 'brass', notes: 'B4:8 A4:8 | F#4:8 A4:8 | G4:8 B4:8 | C5:8 E5:8 | D5:8 B4:8 | A4:8 F#4:8 | G4:4 C5:4 E5:8 | D5:16' },
+      // Drop: Synkopen-Hook (3 + 3 + 2)
+      { bar: 0, voice: 'lead', notes: 'E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 E5:4 C5:4 | E5:3 E5:3 G5:2 A5:2 G5:2 E5:2 G5:2 | D5:3 D5:3 B4:2 D5:4 r:4 | E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 A5:4 G5:4 | E5:3 G5:3 C6:2 B5:2 A5:2 G5:2 E5:2 | D5:4 G5:4 B5:8' },
+      // Groove: Pluck antwortet zwischen den Akkord-Stößen
+      { bar: 8, voice: 'pluck', notes: 'r:4 A5:2 r:2 G5:2 r:2 E5:4 | r:4 F5:2 r:2 E5:2 r:2 C5:4 | r:4 G5:2 r:2 E5:2 r:2 C5:4 | r:4 D5:2 r:2 B4:2 r:2 G4:4 | r:4 A5:2 r:2 G5:2 r:2 E5:4 | r:4 F5:2 r:2 A5:2 r:2 C6:4 | r:4 G5:2 r:2 C6:2 r:2 E6:4 | D6:4 B5:4 G5:4 D5:4' },
+      // Break: getragen
+      { bar: 16, voice: 'lead', notes: 'A5:8 G5:4 E5:4 | F5:8 E5:4 C5:4 | E5:8 D5:4 C5:4 | D5:12 r:4' },
+      // Build-up: der Hook als Pluck kündigt den Drop an
+      { bar: 20, voice: 'pluck', notes: 'E5:3 E5:3 A5:2 G5:2 E5:2 D5:2 C5:2 | C5:3 C5:3 F5:2 E5:4 C5:4 | E5:3 E5:3 G5:2 A5:2 G5:2 E5:2 G5:2 | D5:3 D5:3 B4:2 D5:4 r:4' },
     ],
   },
-  // Endkampf in vier Teilen (je 4 Takte): A bedrohlicher Galopp-Bass mit Pauken und tiefen Blech-Schlägen,
-  // B Blech-Thema, C neapolitanischer Akkord (Es-Dur in d-Moll) für den Schauder, D Höhepunkt: volles Schlagzeug,
-  // Thema hoch (Pulswelle) und eine Oktave tiefer im Blech, Blechstöße im Synkopen-Rhythmus.
   boss: {
-    bpm: 108,
-    bars: 16,
-    choir: [4, 16],
-    horns: true,
-    ostinato: { from: 0, to: 16, pattern: 'RRRRRRFRRRRRRRFO' },
-    hits: [0, 4, 8, 12],
-    swells: [0, 4, 8, 12],
-    chords: ['Dm', 'Dm', 'Bb', 'A', 'Dm', 'Bb', 'Gm', 'A', 'Dm', 'Eb', 'Dm', 'A', 'Gm', 'Eb', 'A', 'A'],
-    bass: ['R.RRR.RRR.RRR.RR', 'R.RRR.RRR.RRR.RR', 'R.RRR.RRR.RRR.RR', 'R.RRR.RRO.OOO.OO'],
-    bassLength: 1,
-    drums: {
-      kick: [...bars(3, 'x.......x.......'), 'x.......x.x.x.x.'],
-      snare: [...bars(4, '................'), ...bars(8, '........x.......'), ...bars(3, '....x.......x...'), '....x...x.x.xxxx'],
-      hat: [...bars(8, '................'), ...bars(8, '..x...x...x...x.')],
-      tom: ['x...............', '................', '................', '........x.x.xxxx', 'x...............', '................', '................', '............x.x.',
-        'x...............', 'x...............', '................', '........x.x.xxxx', 'x.......x.......', 'x.......x.......', 'x.x.x.x.x.x.x.x.', 'xxxxxxxxxxxxxxxx'],
-      crash: ['x...............', ...bars(3, '................')],
+    bpm: 140,
+    form: 'IIIIIIIIDDDDDDDDBBBBUUUUEEEEEEEE',
+    layers: {
+      I: 'kick hat roll arp',
+      D: 'kick clap hat open roll stab',
+      B: 'pad long arp',
+      U: 'kick pad roll build',
+      E: 'kick clap hat open roll stab arp',
     },
-    doom: ['x.......x.......', 'x...............', 'x...............', 'x.......x.......', ...bars(4, '................'), 'x...............', 'x...............', '................', '................', ...bars(4, '................')],
-    pad: true,
-    stabs: [...bars(4, '................'), ...bars(8, 'x.........x.....'), ...bars(4, 'x..x..x...x..x..')],
+    chords: ['Dm', 'Dm', 'Bb', 'A', 'Dm', 'Dm', 'Bb', 'A', 'Dm', 'Bb', 'Gm', 'A', 'Dm', 'Bb', 'Gm', 'A',
+      'Dm', 'Eb', 'Gm', 'A', 'Bb', 'Bb', 'A', 'A', 'Dm', 'Bb', 'Gm', 'A', 'Dm', 'Bb', 'Gm', 'A'],
+    arp: '0102010301020103',
+    stab: 'x..x..x...x..x..',
+    growl: 0.55,   // verzerrter Bass
+    hits: [0, 8, 16, 24],
     leads: [
-      { bar: 4, voice: 'brass', notes: 'D5:8 F5:4 E5:4 | D5:6 C5:2 Bb4:8 | G4:4 Bb4:4 D5:4 G5:4 | F5:4 E5:4 C#5:8' },
-      { bar: 8, voice: 'brass', notes: 'A5:8 G5:4 F5:4 | G5:6 F5:2 Eb5:8 | D5:4 F5:4 A5:4 D6:4 | C#6:8 A5:8' },
-      { bar: 12, voice: 'pulse', notes: 'Bb5:4 A5:4 G5:4 D6:4 | Eb6:8 D6:4 Bb5:4 | C#6:4 E6:4 A6:8 | G6:4 F6:2 E6:2 C#6:8' },
-      { bar: 12, voice: 'brass', notes: 'Bb4:4 A4:4 G4:4 D5:4 | Eb5:8 D5:4 Bb4:4 | C#5:4 E5:4 A5:8 | G5:4 F5:2 E5:2 C#5:8' },
+      // Intro: Pluck-Motiv, das den Hook vorwegnimmt
+      { bar: 4, voice: 'pluck', notes: 'D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | F5:3 D5:3 Bb4:2 D5:4 F5:4 | E5:3 C#5:3 A4:2 C#5:4 E5:4' },
+      { bar: 8, voice: 'lead', notes: 'D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | F5:3 D5:3 Bb4:2 D5:4 F5:4 | G5:2 G5:1 G5:1 Bb5:2 G5:2 D6:3 C6:3 Bb5:2 | A5:3 G5:3 E5:2 C#5:8 | D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | F5:3 D5:3 Bb4:2 F5:4 A5:4 | G5:2 G5:1 G5:1 Bb5:2 G5:2 D6:3 C6:3 Bb5:2 | A5:4 C#6:4 E6:8' },
+      // Break: Schauder (Es-Dur in d-Moll)
+      { bar: 16, voice: 'lead', notes: 'D5:8 F5:8 | Eb5:8 Bb4:8 | G4:8 Bb4:8 | A4:8 C#5:8' },
+      // zweiter Drop: der Hook mit Oktave darüber
+      { bar: 24, voice: 'lead', octave: true, notes: 'D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | F5:3 D5:3 Bb4:2 D5:4 F5:4 | G5:2 G5:1 G5:1 Bb5:2 G5:2 D6:3 C6:3 Bb5:2 | A5:3 G5:3 E5:2 C#5:8 | D5:2 D5:1 D5:1 F5:2 D5:2 A5:3 G5:3 F5:2 | F5:3 D5:3 Bb4:2 F5:4 A5:4 | G5:2 G5:1 G5:1 Bb5:2 G5:2 D6:3 C6:3 Bb5:2 | A5:4 C#6:4 E6:8' },
     ],
   },
 };
+
+/** Takte eines Stücks */
+export const barsOf = song => song.form.length;
+
+/**
+ * Was in einem 16tel-Schritt spielt: Spuren des Abschnitts, Stelle im Build-up (Takt `b` von `n`) und ob gerade die
+ * Stille vor dem Drop ist (letzter Schlag des Build-ups). Quelle für die Band und für den Takt des Sternenflugs.
+ */
+export function stepInfo(song, step) {
+  const bars = barsOf(song);
+  const s = ((step % (bars * 16)) + bars * 16) % (bars * 16);
+  const bar = Math.floor(s / 16);
+  const inBar = s % 16;
+  const letter = song.form[bar];
+  const layers = new Set(song.layers[letter].split(/\s+/));
+  let b = 0;
+  let n = 0;
+  if (layers.has('build')) {
+    while (bar - b - 1 >= 0 && song.form[bar - b - 1] === letter) b++;
+    n = b;
+    while (bar + n - b < bars && song.form[bar + n - b] === letter) n++;
+  }
+  const silent = layers.has('build') && b === n - 1 && inBar >= 12;
+  return { s, bar, inBar, letter, layers, b, n, silent };
+}
+
+/**
+ * Takt-Stärke je 16tel-Schritt (Float32Array): Kick 1, Drop-Impact 1,6, Clap ohne Kick 0,4, Snare-Wirbel im Build-up
+ * wachsend bis 0,6 – daraus pulsiert der Sternenflug.
+ */
+export function beatMap(song) {
+  const steps = barsOf(song) * 16;
+  const map = new Float32Array(steps);
+  for (let step = 0; step < steps; step++) {
+    const { bar, inBar, layers, b, n, silent } = stepInfo(song, step);
+    if (silent) continue;
+    let v = 0;
+    if (layers.has('clap') && (inBar === 4 || inBar === 12)) v = 0.4;
+    if (layers.has('build') && snareRoll(b, n, inBar)) v = 0.15 + 0.45 * ((b * 16 + inBar) / (n * 16));
+    if (layers.has('kick') && inBar % 4 === 0) v = 1;
+    if (inBar === 0 && song.hits.includes(bar)) v = 1.6;
+    map[step] = v;
+  }
+  return map;
+}
+
+/** Snare-Wirbel im Build-up: Viertel, im vorletzten Takt Achtel, im letzten 16tel (bis zur Stille) */
+const snareRoll = (b, n, inBar) => (b < n - 2 ? inBar % 4 === 0 : b === n - 2 ? inBar % 2 === 0 : inBar < 12);
 
 const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 /** „F#5“ → MIDI-Nummer */
@@ -136,196 +186,195 @@ export function parseMelody(text) {
 }
 
 const FADE = 0.6;          // s – Aus-/Einblenden beim Stückwechsel
-const TAIL = 4.5;         // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
+const TAIL = 4;            // s – Nachhall über das Schleifenende hinaus (wird vorn wieder eingemischt)
 const RENDER_RATE = 32000; // Hz – reicht für die Synths, spart Rechenzeit und Speicher
-const PEAK = 1;           // Spitzenpegel eines gerenderten Stücks (danach Musik-Bus 0,65 → Limiter)
+const PEAK = 1;            // Spitzenpegel eines gerenderten Stücks (danach Musik-Bus 0,65 → Limiter)
+const PUMP_DEPTH = 0.22;   // Sidechain: so weit duckt die Kick alles Melodische (danach steigt es über ~½ Schlag)
 /** s – Rand vor und hinter der Schleife in den Audio-Dateien (Kopien vom Ende bzw. Anfang der Schleife): MP3 fügt beim
  *  Kodieren Stille/Verzögerung ein. Abgespielt wird ein Fenster von genau einer Schleifenlänge ab MUSIC_PAD – liegt es
  *  durch die Verzögerung etwas versetzt, ist es trotzdem eine exakte Periode, die Naht bleibt unhörbar. */
 export const MUSIC_PAD = 0.5;
-/** bei jedem neuen Export erhöhen (Adresse der Dateien ändert sich → kein veralteter Browser-Cache) */
-export const MUSIC_VERSION = 1;
+/** bei jedem neuen Export erhöhen – steckt im Dateinamen (menu-v4.mp3 …), damit kein Browser- oder CDN-Cache die alte
+ *  Fassung liefert (ein ?v= an der Adresse reichte nicht) */
+export const MUSIC_VERSION = 4;
+/** Pfad der fertigen Musikdatei eines Stücks unter public/ (scripts/encode-music.sh schreibt sie so) */
+export const musicFile = name => `audio/${name}-v${MUSIC_VERSION}.mp3`;
 
-/** Instrumente (Synths, Schlagzeug, Hall, Echo) in den aktuellen Tone-Kontext bauen;
- *  `play(song, leads, step, time)` spielt einen 16tel-Schritt */
-async function createBand(Tone, out) {
+/** Instrumente für ein Stück in den aktuellen Tone-Kontext bauen; `play(leads, step, time)` spielt einen 16tel-Schritt */
+async function createBand(Tone, out, song) {
   const midi = n => Tone.Frequency(n, 'midi').toFrequency();
+  const beat = 60 / song.bpm;
+  const sixteenth = beat / 4;
 
-  const reverb = new Tone.Reverb({ decay: 4.2, wet: 0.34 }).connect(out);   // großer Saal
-  const echo = new Tone.FeedbackDelay({ delayTime: '8n.', feedback: 0.28, wet: 0.22 }).connect(reverb);
-  const drumBus = new Tone.Gain(1).connect(out);
-  // Schlagzeug nur zu einem Teil in den großen Saal – voll hineingeschickt zischte die Snare lange nach („Pschhh“)
-  drumBus.connect(new Tone.Gain(0.25).connect(reverb));
+  // Sidechain: alles Melodische (und sein Hall) läuft durch `pump`; jede Kick duckt es kurz weg
+  const pump = new Tone.Gain(1).connect(out);
+  const duck = time => {
+    pump.gain.cancelScheduledValues(time);
+    pump.gain.setValueAtTime(PUMP_DEPTH, time);
+    pump.gain.linearRampToValueAtTime(1, time + beat * 0.55);
+  };
+  const reverb = new Tone.Reverb({ decay: 3.2, wet: 1 }).connect(pump);
+  const delay = new Tone.PingPongDelay({ delayTime: sixteenth * 3, feedback: 0.32, wet: 1 }).connect(pump);
+  const drums = new Tone.Gain(1).connect(out);
+  /** Knoten trocken nach `to` (Standard pump), dazu Anteile in Hall und Echo */
+  const route = (node, { to = pump, verb = 0, echo = 0 } = {}) => {
+    node.connect(to);
+    if (verb) node.connect(new Tone.Gain(verb).connect(reverb));
+    if (echo) node.connect(new Tone.Gain(echo).connect(delay));
+    return node;
+  };
 
-  // Streicher-Fläche
-  const padFilter = new Tone.Filter({ type: 'lowpass', frequency: 1800, Q: 0.4 }).connect(reverb);
+  // --- Schlagzeug (pumpt nicht) ---
+  const kick = new Tone.MembraneSynth({ pitchDecay: 0.04, octaves: 5.5, envelope: { attack: 0.001, decay: 0.38, sustain: 0, release: 0.05 }, volume: song.kick ?? -4 }).connect(drums);
+  const click = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.008, sustain: 0 }, volume: (song.kick ?? -4) - 20 })
+    .connect(new Tone.Filter({ type: 'highpass', frequency: 3000 }).connect(drums));
+  const clapFilter = route(new Tone.Filter({ type: 'bandpass', frequency: 1400, Q: 0.9 }), { to: drums, verb: 0.35 });
+  const clap = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.15, sustain: 0 }, volume: -8 }).connect(clapFilter);
+  const hat = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.03, sustain: 0 }, volume: -20 })
+    .connect(new Tone.Filter({ type: 'highpass', frequency: 9000 }).connect(drums));
+  const open = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 0.17, sustain: 0 }, volume: -18 })
+    .connect(new Tone.Filter({ type: 'highpass', frequency: 7500 }).connect(drums));
+  const snareFilter = route(new Tone.Filter({ type: 'bandpass', frequency: 2300, Q: 0.6 }), { to: drums, verb: 0.3 });
+  const snare = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.11, sustain: 0 }, volume: -15 }).connect(snareFilter);
+  const snareBody = new Tone.MembraneSynth({ pitchDecay: 0.02, octaves: 1.4, envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.04 }, volume: -16 }).connect(drums);
+  // Impact auf dem Drop: tiefer Schlag, dumpfes Rauschen, Becken
+  const impact = new Tone.MembraneSynth({ pitchDecay: 0.3, octaves: 4, envelope: { attack: 0.002, decay: 1.6, sustain: 0, release: 0.6 }, volume: -5 }).connect(drums);
+  const boom = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.002, decay: 1.1, sustain: 0 }, volume: -14 })
+    .connect(route(new Tone.Filter({ type: 'lowpass', frequency: 800 }), { to: drums, verb: 0.5 }));
+  const crash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.9, sustain: 0 }, volume: -21 })
+    .connect(route(new Tone.Filter({ type: 'highpass', frequency: 4200 }), { to: drums, verb: 0.4 }));
+  // Riser im Build-up: Rauschen mit aufgehendem Filter + steigender Ton
+  const riserFilter = route(new Tone.Filter({ type: 'bandpass', frequency: 500, Q: 1.2 }), { to: drums, verb: 0.6 });
+  const riser = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 1, attackCurve: 'exponential', decay: 0.02, sustain: 0 }, volume: -15 }).connect(riserFilter);
+  const lifter = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.8, decay: 0.1, sustain: 1, release: 0.05 }, volume: -32 })
+    .connect(route(new Tone.Filter({ type: 'lowpass', frequency: 3000 }), { verb: 0.5 }));
+
+  // --- Bass: Sub (Sinus) + Reese eine Oktave höher (Sägezahn mit Filter-Hüllkurve, im Boss verzerrt) ---
+  const sub = route(new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.004, decay: 0.1, sustain: 0.9, release: 0.05 }, volume: -14 }));
+  const reeseOut = song.growl ? route(new Tone.Distortion(song.growl)) : pump;
+  const reese = new Tone.MonoSynth({
+    oscillator: { type: 'fatsawtooth', count: 2, spread: 18 },
+    filter: { type: 'lowpass', rolloff: -24, Q: 3 },
+    envelope: { attack: 0.003, decay: 0.15, sustain: 0.5, release: 0.06 },
+    filterEnvelope: { attack: 0.002, decay: 0.12, sustain: 0.25, release: 0.08, baseFrequency: 160, octaves: 3.4 },
+    volume: song.growl ? -22 : -16,
+  }).connect(reeseOut);
+  const bass = (note, length, time, velocity = 1) => {
+    sub.triggerAttackRelease(midi(note), length, time, velocity);
+    reese.triggerAttackRelease(midi(note + 12), length, time, velocity);
+  };
+
+  // --- Akkorde, Lead, Plucks ---
+  const stabs = new Tone.PolySynth(Tone.Synth, {
+    maxPolyphony: 9,
+    oscillator: { type: 'fatsawtooth', count: 4, spread: 38 },
+    envelope: { attack: 0.003, decay: 0.16, sustain: 0.2, release: 0.12 },
+    volume: -14,
+  }).connect(route(new Tone.Filter({ type: 'lowpass', frequency: 5200 }), { verb: 0.25 }));
   const pad = new Tone.PolySynth(Tone.Synth, {
-    maxPolyphony: 8,
-    oscillator: { type: 'fatsawtooth', count: 3, spread: 22 },
-    envelope: { attack: 0.35, decay: 0.3, sustain: 0.8, release: 1.4 },
-    volume: -27,
-  }).connect(padFilter);
-  // Blech: Sägezahn mit Filter-Hüllkurve (das „Anblasen“)
-  const brass = new Tone.PolySynth(Tone.MonoSynth, {
-    maxPolyphony: 8,
-    oscillator: { type: 'sawtooth' },
-    filter: { type: 'lowpass', rolloff: -24, Q: 1 },
-    envelope: { attack: 0.03, decay: 0.25, sustain: 0.75, release: 0.35 },
-    filterEnvelope: { attack: 0.07, decay: 0.3, sustain: 0.55, release: 0.35, baseFrequency: 280, octaves: 3.3 },
-    volume: -17,
-  }).connect(echo);
-  // Pulswellen-Lead mit leichtem Vibrato
-  const vibrato = new Tone.Vibrato({ frequency: 5.5, depth: 0.06 }).connect(echo);
-  const pulse = new Tone.Synth({
-    oscillator: { type: 'pulse', width: 0.3 },
-    envelope: { attack: 0.008, decay: 0.12, sustain: 0.55, release: 0.12 },
-    volume: -21,
-  }).connect(vibrato);
-  // Arpeggio (leise Rechteck-Perlen)
-  const arpFilter = new Tone.Filter({ type: 'lowpass', frequency: 2600 }).connect(echo);
-  const arp = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.002, decay: 0.07, sustain: 0, release: 0.04 }, volume: -31 }).connect(arpFilter);
-  // Slap-Bass
-  const bass = new Tone.MonoSynth({
-    oscillator: { type: 'sawtooth' },
-    filter: { type: 'lowpass', rolloff: -24, Q: 2 },
-    envelope: { attack: 0.004, decay: 0.2, sustain: 0.45, release: 0.12 },
-    filterEnvelope: { attack: 0.002, decay: 0.16, sustain: 0.2, release: 0.1, baseFrequency: 110, octaves: 3.2 },
-    volume: -15,
-  }).connect(out);
-  // Schlagzeug
-  const kick = new Tone.MembraneSynth({ pitchDecay: 0.045, octaves: 6, envelope: { attack: 0.001, decay: 0.32, sustain: 0, release: 0.1 }, volume: -9 }).connect(drumBus);
-  // Snare: Rauschen (Teppich, bandbegrenzt) + kurzer tonaler Schlag (Fell) – nur Rauschen klang wie Zischen
-  const snareFilter = new Tone.Filter({ type: 'bandpass', frequency: 3200, Q: 0.7 }).connect(drumBus);
-  const snare = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.13, sustain: 0 }, volume: -17 }).connect(snareFilter);
-  const snareBody = new Tone.MembraneSynth({ pitchDecay: 0.025, octaves: 1.4, envelope: { attack: 0.001, decay: 0.11, sustain: 0, release: 0.05 }, volume: -12 }).connect(drumBus);
-  const hatFilter = new Tone.Filter({ type: 'highpass', frequency: 7500 }).connect(drumBus);
-  const hat = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.035, sustain: 0 }, volume: -30 }).connect(hatFilter);
-  const tom = new Tone.MembraneSynth({ pitchDecay: 0.14, octaves: 1.6, envelope: { attack: 0.002, decay: 0.8, sustain: 0, release: 0.3 }, volume: -8 }).connect(drumBus);
-  const crashFilter = new Tone.Filter({ type: 'highpass', frequency: 4200 }).connect(drumBus);
-  const crash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.6, sustain: 0 }, volume: -22 }).connect(crashFilter);
-
-  // --- epische Schicht ---
-  // Chor: verstimmte Sägezähne durch zwei Formant-Filter (≈ „Aah“), weicher Einsatz, viel Hall
-  const choirBus = new Tone.Gain(1).connect(reverb);
-  const formantA = new Tone.Filter({ type: 'bandpass', frequency: 760, Q: 3.5 }).connect(choirBus);
-  const formantB = new Tone.Filter({ type: 'bandpass', frequency: 1180, Q: 4.5 }).connect(choirBus);
-  // (Renderzeit: jede Stimme rechnet ihre Oszillatoren das ganze Stück mit – deshalb 3 Sägezähne, 6 Stimmen,
-  // kurzes Ausklingen; der lange Hall trägt den Rest)
-  const choir = new Tone.PolySynth(Tone.Synth, {
     maxPolyphony: 6,
-    oscillator: { type: 'fatsawtooth', count: 2, spread: 30 },
-    envelope: { attack: 0.7, decay: 0.4, sustain: 0.85, release: 0.9 },
-    volume: -10,
-  });
-  choir.connect(formantA);
-  choir.connect(formantB);
-  // Streicher-Ostinato: kurze, gerissene Sägezahn-Töne – einstimmig (16tel überlappen nicht; PolySynth je Note kostete
-  // beim Rendern ein Vielfaches)
-  const ostinatoFilter = new Tone.Filter({ type: 'lowpass', frequency: 2400, Q: 0.6 }).connect(reverb);
-  const ostinato = new Tone.Synth({
-    oscillator: { type: 'sawtooth' },
-    envelope: { attack: 0.004, decay: 0.11, sustain: 0.15, release: 0.06 },
-    volume: -19,
-  }).connect(ostinatoFilter);
-  // Impact: tiefer Schlag + dumpfes Rauschen (der „Trailer-Hit“)
-  const impact = new Tone.MembraneSynth({ pitchDecay: 0.35, octaves: 4, envelope: { attack: 0.002, decay: 1.8, sustain: 0, release: 0.8 }, volume: -5 }).connect(drumBus);
-  const impactNoiseFilter = new Tone.Filter({ type: 'lowpass', frequency: 900 }).connect(reverb);
-  const impactNoise = new Tone.NoiseSynth({ noise: { type: 'brown' }, envelope: { attack: 0.002, decay: 1.2, sustain: 0 }, volume: -12 }).connect(impactNoiseFilter);
-  // eigenes Becken (das vom Schlagzeug kann im selben Schritt schon schlagen – Tone verlangt steigende Startzeiten)
-  const impactCrashFilter = new Tone.Filter({ type: 'highpass', frequency: 4200 }).connect(drumBus);
-  const impactCrash = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.002, decay: 1.8, sustain: 0 }, volume: -22 }).connect(impactCrashFilter);
-  // Hörner: das Blech-Thema eine Oktave tiefer – einstimmig, weicher Sägezahn durch festes Tiefpassfilter (als zweite
-  // Stimme im Blech-PolySynth kostete die Dopplung beim Rendern mehr als das ganze übrige Stück)
-  const hornFilter = new Tone.Filter({ type: 'lowpass', frequency: 1100, Q: 0.7 }).connect(echo);
-  const horn = new Tone.Synth({
-    oscillator: { type: 'fatsawtooth', count: 2, spread: 14 },
-    envelope: { attack: 0.06, decay: 0.3, sustain: 0.8, release: 0.4 },
-    volume: -19,
-  }).connect(hornFilter);
-  // Becken-Swell: Rauschen schwillt an und bricht ab
-  const swellFilter = new Tone.Filter({ type: 'highpass', frequency: 2800 }).connect(reverb);
-  const swell = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 1, attackCurve: 'exponential', decay: 0.05, sustain: 0 }, volume: -20 }).connect(swellFilter);
+    oscillator: { type: 'fatsawtooth', count: 3, spread: 30 },
+    envelope: { attack: 0.5, decay: 0.5, sustain: 0.8, release: 1.1 },
+    volume: -17,
+  }).connect(route(new Tone.Filter({ type: 'lowpass', frequency: 1700 }), { verb: 0.5 }));
+  const leadFilter = route(new Tone.Filter({ type: 'lowpass', frequency: 6500 }), { verb: 0.3, echo: 0.18 });
+  const lead = new Tone.PolySynth(Tone.Synth, {
+    maxPolyphony: 4,
+    oscillator: { type: 'fatsawtooth', count: 5, spread: 28 },
+    envelope: { attack: 0.006, decay: 0.2, sustain: 0.6, release: 0.18 },
+    volume: -11,
+  }).connect(leadFilter);
+  const leadHigh = new Tone.Synth({ oscillator: { type: 'fatsawtooth', count: 3, spread: 22 }, envelope: { attack: 0.006, decay: 0.2, sustain: 0.5, release: 0.15 }, volume: -17 }).connect(leadFilter);
+  const pluck = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.002, decay: 0.18, sustain: 0, release: 0.1 }, volume: -10 })
+    .connect(route(new Tone.Filter({ type: 'lowpass', frequency: 3200, Q: 1.5 }), { verb: 0.2, echo: 0.3 }));
+  const arp = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.002, decay: 0.08, sustain: 0, release: 0.04 }, volume: -20 })
+    .connect(route(new Tone.Filter({ type: 'lowpass', frequency: 2600 }), { echo: 0.25 }));
 
-  const voices = { brass, pulse };
   await reverb.ready;
 
-  return (song, leads, step, time) => {
-    const sixteenth = 60 / song.bpm / 4;
-    const s = step % (song.bars * 16);
-    const bar = Math.floor(s / 16);
-    const inBar = s % 16;
+  return (leads, step, time) => {
+    const { s, bar, inBar, letter, layers, b, n, silent } = stepInfo(song, step);
+    const arpPattern = song.patterns?.[letter]?.arp ?? song.arp;
+    const stabPattern = song.patterns?.[letter]?.stab ?? song.stab;
     const chord = CHORDS[song.chords[bar % song.chords.length]];
-    const pick = (list, b = bar) => list[b % list.length];
+    const has = name => layers.has(name) && !silent;
+    // Drop-Anfang
+    if (inBar === 0 && song.hits.includes(bar)) {
+      impact.triggerAttackRelease(midi(chord.root - 12), 1.4, time);
+      boom.triggerAttackRelease(1, time, 0.8);
+      crash.triggerAttackRelease(1.8, time, 0.9);
+    }
     // Schlagzeug
-    for (const [name, patterns] of Object.entries(song.drums)) {
-      if (pick(patterns)[inBar] !== 'x') continue;
-      if (name === 'kick') kick.triggerAttackRelease('C1', 0.2, time);
-      else if (name === 'snare') {
-        const velocity = pick(patterns)[inBar - 1] === 'x' ? 0.6 : 1;   // Wirbel leiser
-        snare.triggerAttackRelease(0.12, time, velocity);
-        snareBody.triggerAttackRelease(190, 0.1, time, velocity);
+    if (has('kick') && inBar % 4 === 0) {
+      kick.triggerAttackRelease('C1', 0.25, time);
+      click.triggerAttackRelease(0.01, time);
+      duck(time);
+    }
+    if (has('clap') && (inBar === 4 || inBar === 12)) {
+      clap.triggerAttackRelease(0.02, time, 0.5);   // Clap = drei schnelle Schläge
+      clap.triggerAttackRelease(0.02, time + 0.011, 0.6);
+      clap.triggerAttackRelease(0.15, time + 0.022, 1);
+    }
+    if (has('hat')) hat.triggerAttackRelease(0.03, time, inBar % 4 === 2 ? 1 : inBar % 2 ? 0.45 : 0.7);
+    if (has('open') && inBar % 4 === 2) open.triggerAttackRelease(0.15, time);
+    // Build-up: Riser über alle Takte, Snare-Wirbel immer dichter und lauter
+    if (layers.has('build')) {
+      if (b === 0 && inBar === 0) {
+        const length = n * 16 * sixteenth;
+        riser.envelope.attack = length;
+        riser.triggerAttackRelease(length, time, 0.9);
+        riserFilter.frequency.setValueAtTime(400, time);
+        riserFilter.frequency.exponentialRampToValueAtTime(11000, time + length);
+        lifter.triggerAttack(midi(chord.root + 12), time, 0.8);
+        lifter.frequency.exponentialRampToValueAtTime(midi(chord.root + 36), time + length);
+        lifter.triggerRelease(time + length);
       }
-      else if (name === 'hat') hat.triggerAttackRelease(0.03, time, inBar % 4 === 0 ? 1 : 0.6);
-      else if (name === 'tom') tom.triggerAttackRelease(midi(chord.root - 12 + (inBar > 12 ? 7 : 0)), 0.5, time, pick(patterns)[inBar - 1] === 'x' ? 0.7 : 1);
-      else if (name === 'crash') crash.triggerAttackRelease(1.5, time);
+      if (snareRoll(b, n, inBar)) {
+        const velocity = 0.35 + 0.65 * ((b * 16 + inBar) / (n * 16));
+        snare.triggerAttackRelease(0.1, time, velocity);
+        snareBody.triggerAttackRelease(200, 0.08, time, velocity);
+      }
     }
     // Bass
-    const b = pick(song.bass)[inBar];
-    if (b && b !== '.') {
-      const note = chord.root + (b === 'O' ? 12 : b === 'F' ? 7 : 0);
-      bass.triggerAttackRelease(midi(note), sixteenth * song.bassLength * 0.9, time, inBar % 4 === 0 ? 1 : 0.75);
+    if (has('bass') && inBar % 4 === 2) bass(chord.root, sixteenth * 1.8, time);
+    if (has('roll') && inBar % 4 !== 0) bass(chord.root + (bar % 2 && inBar >= 14 ? 12 : 0), sixteenth * 0.8, time, inBar % 2 ? 0.7 : 0.9);
+    if (has('long') && inBar === 0) sub.triggerAttackRelease(midi(chord.root), sixteenth * 15.5, time, 0.45);
+    // Akkorde
+    if (has('pad') && inBar === 0) pad.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15.5, time, 0.7);
+    if (has('stab') && stabPattern[inBar] === 'x') stabs.triggerAttackRelease(chord.pad.map(note => midi(note + 12)), sixteenth * 1.4, time, 0.8);
+    if (has('arp')) {
+      const k = arpPattern[inBar];
+      if (k !== '.') {
+        const tones = [...chord.pad, chord.pad[0] + 12];
+        arp.triggerAttackRelease(midi(tones[Number(k)] + 12), sixteenth * 0.8, time, 0.8);
+      }
     }
-    // Streicher: je Takt neu angeschlagen
-    if (song.pad && inBar === 0) pad.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15.5, time, 0.7);
-    // Blechstöße und tiefe Blech-Schläge (Grundton in Oktaven) – Boss
-    if (song.stabs && pick(song.stabs)[inBar] === 'x') brass.triggerAttackRelease(chord.pad.map(midi), sixteenth * 1.6, time, 0.5);
-    if (song.doom && pick(song.doom)[inBar] === 'x') brass.triggerAttackRelease([chord.root, chord.root + 12].map(midi), sixteenth * 6, time, 0.9);
-    // Arpeggio: Akkordtöne eine Oktave höher, auf und ab
-    if (song.arp) {
-      const tones = [...chord.pad, chord.pad[0] + 12].map(n => n + 12);
-      const k = inBar % 6;
-      arp.triggerAttackRelease(midi(tones[k < 4 ? k : 6 - k]), sixteenth * 0.8, time, 0.8);
-    }
-    // Melodie (Blech-Thema mit Hörnern eine Oktave tiefer)
-    for (const lead of leads.get(s) ?? []) {
-      voices[lead.voice].triggerAttackRelease(midi(lead.midi), sixteenth * lead.length * 0.92, time, 0.85);
-      if (song.horns && lead.voice === 'brass') horn.triggerAttackRelease(midi(lead.midi - 12), sixteenth * lead.length * 0.92, time, 0.8);
-    }
-    const within = range => range && bar >= range[0] && bar < range[1];
-    // Chor: je Takt der Akkord (Lage der Streicher)
-    if (inBar === 0 && within(song.choir)) choir.triggerAttackRelease(chord.pad.map(midi), sixteenth * 15, time, 0.6);
-    // Ostinato: 16tel auf Grundton/Quinte/Oktave (eine Oktave über dem Bass), Taktanfang betont
-    if (song.ostinato && within([song.ostinato.from, song.ostinato.to])) {
-      const o = song.ostinato.pattern[inBar];
-      const note = chord.root + 24 + (o === 'F' ? 7 : o === 'O' ? 12 : 0);
-      if (o !== '.') ostinato.triggerAttackRelease(midi(note), sixteenth * 0.6, time, inBar % 4 === 0 ? 0.9 : 0.6);
-    }
-    // Impact auf dem Abschnittsanfang, Swell schwillt den Takt davor hinein
-    if (inBar === 0 && song.hits?.includes(bar)) {
-      impact.triggerAttackRelease(midi(chord.root - 12), 1.6, time);
-      impactNoise.triggerAttackRelease(1.1, time, 0.8);
-      impactCrash.triggerAttackRelease(1.6, time, 0.8);
-    }
-    if (inBar === 0 && song.swells?.includes((bar + 1) % song.bars)) {
-      swell.envelope.attack = sixteenth * 16;
-      swell.triggerAttackRelease(sixteenth * 16, time, 0.7);
-    }
+    // Melodien
+    if (!silent)
+      for (const note of leads.get(s) ?? []) {
+        const length = sixteenth * note.length * 0.92;
+        if (note.voice === 'pluck') pluck.triggerAttackRelease(midi(note.midi), length, time, 0.85);
+        else {
+          lead.triggerAttackRelease(midi(note.midi), length, time, 0.85);
+          if (note.octave) leadHigh.triggerAttackRelease(midi(note.midi + 12), length, time, 0.7);
+        }
+      }
   };
 }
 
-/** Melodien eines Stücks: Schritt → [{ midi, length, voice }] (mehrere Stimmen gleichzeitig möglich) */
+/** Melodien eines Stücks: Schritt → [{ midi, length, voice, octave }] (mehrere Stimmen gleichzeitig möglich) */
 function leadsOf(song) {
   const leads = new Map();
-  for (const { bar, voice, notes } of song.leads)
+  for (const { bar, voice, notes, octave = false } of song.leads)
     for (const n of parseMelody(notes)) {
       const at = bar * 16 + n.step;
-      leads.set(at, [...(leads.get(at) ?? []), { ...n, voice }]);
+      leads.set(at, [...(leads.get(at) ?? []), { ...n, voice, octave }]);
     }
   return leads;
 }
 
 /** Länge einer Schleife in s */
-export const loopLength = song => (song.bars * 16 * 60) / song.bpm / 4;
+export const loopLength = song => (barsOf(song) * 16 * 60) / song.bpm / 4;
 
 /** Periode der gerenderten Schleife in s – auf ganze Samples gerundet (so lang ist sie in den Dateien) */
 export const loopPeriod = song => Math.round(loopLength(song) * RENDER_RATE) / RENDER_RATE;
@@ -334,13 +383,13 @@ export const loopPeriod = song => Math.round(loopLength(song) * RENDER_RATE) / R
 async function renderSong(Tone, song) {
   const length = loopLength(song);
   const leads = leadsOf(song);
-  const steps = song.bars * 16;
+  const steps = barsOf(song) * 16;
   const sixteenth = length / steps;
   const rendered = await Tone.Offline(async ({ transport }) => {
-    const play = await createBand(Tone, Tone.getDestination());
+    const play = await createBand(Tone, Tone.getDestination(), song);
     let step = 0;
     transport.bpm.value = song.bpm;
-    transport.scheduleRepeat(time => step < steps && play(song, leads, step++, time), sixteenth, 0);
+    transport.scheduleRepeat(time => step < steps && play(leads, step++, time), sixteenth, 0);
     transport.start(0);
   }, length + TAIL, 2, RENDER_RATE);
   const audio = rendered.get();
@@ -382,8 +431,10 @@ export async function renderForExport(Tone, name) {
   return out;
 }
 
+const BEAT_DECAY = 9;   // 1/s – so schnell klingt ein Schlag im Takt (beat()) ab
+
 /**
- * Musik als Schleifen aus fertigen Audio-Dateien (public/audio/<name>.mp3, Rand MUSIC_PAD). Vorher wurden die Stücke
+ * Musik als Schleifen aus fertigen Audio-Dateien (public/audio/<name>-v<MUSIC_VERSION>.mp3, musicFile, Rand MUSIC_PAD). Vorher wurden die Stücke
  * im Browser gerendert – auf dem Handy dauerte das ~20 s bis zum ersten Ton; davor liefen die Synths live und kosteten
  * neben WebGL zu viel Rechenzeit (Rauschen, Aussetzer). Die Synths in diesem Modul bleiben die Quelle der Dateien.
  * @param {typeof import('tone')} Tone  @param {import('tone').ToneAudioNode} out
@@ -395,6 +446,7 @@ export function createMusic(Tone, out, { url } = {}) {
   // Knoten fürs Abspielen dürfen nie dort entstehen (sonst „different audio context“, Musik startet nicht)
   const context = Tone.getContext();
   const buffers = new Map();   // Name → Promise<{ buffer: ToneAudioBuffer, loopStart: number, loopEnd: number }>
+  const beats = new Map();     // Name → beatMap
   let queue = Promise.resolve();
   /** Datei laden und dekodieren – Schleife = Fenster ab dem Rand */
   const load = async name => {
@@ -420,7 +472,7 @@ export function createMusic(Tone, out, { url } = {}) {
   };
 
   let current = null;
-  let player = null;   // { node, gain }
+  let player = null;   // { node, gain, name, start (Kontextzeit, zu der Schritt 0 erklingt), period }
 
   const fadeOut = old => {
     if (!old) return;
@@ -445,14 +497,39 @@ export function createMusic(Tone, out, { url } = {}) {
         if (current !== name || player) return;
         const gain = new Tone.Gain({ gain: 0, context }).connect(out);
         const node = new Tone.Player({ url: buffer, loop: true, loopStart, loopEnd, context }).connect(gain);
-        node.start(context.now() + 0.05, loopStart);
-        gain.gain.rampTo(1, FADE * 2, context.now() + 0.05);
-        player = { node, gain };
+        const start = context.now() + 0.05;
+        node.start(start, loopStart);
+        gain.gain.rampTo(1, FADE * 2, start);
+        // (die Encoder-Verzögerung der MP3s gleicht der Decoder über den LAME-Header aus – gemessen: 0 Samples Versatz)
+        player = { node, gain, name, start, period: loopEnd - loopStart };
         // die übrigen Stücke nacheinander vorbereiten (laden) – Wechsel (Menü → Spiel → Boss) gehen dann ohne Pause
         for (const other of Object.keys(SONGS)) render(other);
       }, () => {});
     },
     /** im Hintergrund vorbereiten */
     prepare: render,
+    /**
+     * Takt gerade jetzt (was man hört): 0 = Stille … 1 = Kick, bis 1,6 auf dem Drop – klingt nach jedem Schlag ab.
+     * Folgt dem Ein-/Ausblenden des Stücks.
+     */
+    beat() {
+      if (!player) return 0;
+      const song = SONGS[player.name];
+      if (!beats.has(player.name)) beats.set(player.name, beatMap(song));
+      const map = beats.get(player.name);
+      const raw = context.rawContext;
+      const heard = raw.currentTime - (raw.outputLatency || raw.baseLatency || 0);
+      const pos = heard - player.start;
+      if (pos < 0) return 0;
+      const sixteenth = 60 / song.bpm / 4;
+      const at = (pos % player.period) / sixteenth;
+      const step = Math.floor(at);
+      // letzter Schlag (bis zu einem Takt zurück)
+      for (let k = 0; k < 16; k++) {
+        const v = map[(step - k + map.length) % map.length];
+        if (v > 0) return v * Math.exp(-BEAT_DECAY * (at - step + k) * sixteenth) * Math.min(1, player.gain.gain.value);
+      }
+      return 0;
+    },
   };
 }

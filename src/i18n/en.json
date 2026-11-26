@@ -10,7 +10,7 @@
   },
   "home": {
     "claim": "Crack the core – colour by colour.",
-    "intro": "Tap ships on the conveyor belt – they only hit blocks of their own colour on the very outside. But careful: whatever falls off the belt is gone.",
+    "intro": "Tap ships on the conveyor belt – they only hit blocks of their own colour that are on the very outside and in their sight. Turn the figure towards them! But careful: whatever falls off the belt is gone.",
     "play": "Play",
     "continue": "Continue with level {n}",
     "levels": "Levels",
@@ -20,7 +20,7 @@
     "level": "Level {n}",
     "progress": "Progress",
     "stage": "Playfield: figure, hangar and ship queue. Keys 1 to 5 launch a ship, arrow keys slide the front row.",
-    "hint": "Tap a ship on the belt – it flies to a free pad. It only hits blocks of its colour on the very outside. Whatever falls off the left end is gone.",
+    "hint": "Tap a ship on the belt – it flies to a free pad. It only hits blocks of its colour that are on the very outside and in its sight – drag the figure to turn it. Whatever falls off the left end is gone.",
     "tutorial": "Tap the ships!",
     "more": "+{count}",
     "won": "Popped!",

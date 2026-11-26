@@ -10,7 +10,7 @@
   },
   "home": {
     "claim": "Knack den Kern – Farbe für Farbe.",
-    "intro": "Tippe Flieger auf dem Förderband an – sie schießen nur Blöcke ihrer Farbe, die ganz außen liegen. Aber Vorsicht: Was vom Band fällt, ist weg.",
+    "intro": "Tippe Flieger auf dem Förderband an – sie schießen nur auf Blöcke ihrer Farbe, die ganz außen liegen und die sie sehen. Dreh die Figur zu ihnen! Aber Vorsicht: Was vom Band fällt, ist weg.",
     "play": "Spielen",
     "continue": "Weiter mit Level {n}",
     "levels": "Level",
@@ -20,7 +20,7 @@
     "level": "Level {n}",
     "progress": "Fortschritt",
     "stage": "Spielfeld: Figur, Hangar und Warteschlange. Tasten 1 bis 5 starten ein Schiff, Pfeiltasten schieben die vordere Reihe.",
-    "hint": "Tippe einen Flieger auf dem Band an – er fliegt auf eine freie Plattform. Er trifft nur Blöcke seiner Farbe ganz außen. Was links vom Band fällt, ist weg.",
+    "hint": "Tippe einen Flieger auf dem Band an – er fliegt auf eine freie Plattform. Er trifft nur Blöcke seiner Farbe, die ganz außen liegen und die er sieht – zieh an der Figur, um sie zu drehen. Was links vom Band fällt, ist weg.",
     "tutorial": "Klick auf die Schiffe!",
     "more": "+{count}",
     "won": "Gepoppt!",

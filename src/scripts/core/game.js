@@ -54,12 +54,12 @@
 //                                         'ammo': für `color` reicht die Munition nicht mehr (Schiff heruntergefallen)
 
 import { createRng } from './rng.js';
-import { createAsteroid, removeVoxel, openNormals, clearRay, hittable, blastReach, blastPower, BLAST } from './asteroid.js';
+import { createAsteroid, removeVoxel, openNormals, clearRay, hittable, sees, blastReach, blastPower, BLAST } from './asteroid.js';
 import { createFleet } from './fleet.js';
 
 export const TIMING = {
   arrive: 0.45,    // s vom Antippen bis schussbereit
-  fireEvery: 0.06, // s zwischen zwei Schüssen eines Schiffs
+  fireEvery: 0.03, // s zwischen zwei Schüssen eines Schiffs
   shot: 0.28,      // s Flugzeit eines Schusses
   leave: 0.7,      // s bis ein leeres Schiff den Slot freigibt
   stuck: 0.8,      // s mit lauter blockierten Schiffen im vollen Hangar, bis das Spiel verloren ist
@@ -67,6 +67,10 @@ export const TIMING = {
 };
 /** Mindest-Skalarprodukt Flächennormale · Richtung zur Kamera, damit ein Voxel als „sichtbar“ gilt */
 export const FACING = 0.2;
+/** Mindest-Skalarprodukt Flächennormale · Richtung zum Schiff, damit das Schiff die Fläche sieht (streifend zählt nicht) */
+export const SEE_MIN = 0.1;
+/** … und zur Kamera (der Spieler sieht die Fläche: nie auf die Rückseite) */
+export const CAMERA_MIN = 0;
 const AIM_JITTER = 0.3;   // etwas Zufall bei der Zielwahl, damit nicht alle Schiffe dasselbe Muster schießen
 const CRYSTAL_PRIORITY = 1;   // ein sichtbarer Kristall wird vor allen anderen Zielen beschossen
 /** Förderband: sichtbare Plätze, Standard-Tempo (Plätze/s, Level: `belt`), Abstand des ersten Schiffs zum Ende */
@@ -79,6 +83,10 @@ export const BELT_CATCHUP = 2.5;
  *  aufrutschen hielt das Band voll, am Ende fiel im Bandtempo ständig eins herunter (gemessen: schlauer Bot gewann den
  *  Boss nur noch 17–67 % statt 100 %, weil wichtige Schiffe fielen, während die Plattformen besetzt waren) */
 export const BELT_MIN = 4;
+/** Leerlauf: Sind alle Plattformen frei (und schon einmal gestartet), läuft das Band so viel schneller – sonst wartete
+ *  man auf Nachschub (Tempo 0,25: alle 4 s ein Schiff, ein 100er ist in 3 s leer geschossen). Weich ein/aus (Rate/s). */
+export const BELT_RUSH = 3;
+const BELT_RUSH_RATE = 4;
 const BELT_START = 2.5;   // erstes Schiff startet so weit vom Bandende – etwas Zeit zum Umschauen
 const DROP_AT = -0.5;     // Position, an der ein Schiff herunterfällt (halb über die Kante)
 /** Sterne: höchstens so viele Fehlstarts (gestartete Schiffe, die blockiert stehen blieben) für ★★ bzw. ★★★ */
@@ -103,6 +111,8 @@ export function createGame(level, { seed = level.seed } = {}) {
   /** @type {{ ship: object, pos: number }[]} Band, nach Position (0 = Bandende links) */
   const belt = [];
   const beltSpeed = level.belt ?? DEFAULT_BELT_SPEED;
+  let rush = 0;   // 0 … 1: Anteil des Leerlauf-Tempos (BELT_RUSH)
+  let launched = false;   // erst nach dem ersten Start – am Anfang Zeit zum Umschauen
   for (let pos = BELT_START; pos < BELT_LENGTH && queue.length; pos++) belt.push({ ship: queue.shift(), pos });
   const aimRng = createRng(`${seed}:aim`);   // eigener Strom: Zielwahl verändert die Level-Erzeugung nicht
 
@@ -120,28 +130,33 @@ export function createGame(level, { seed = level.seed } = {}) {
   let stuckFor = 0;
   let state = 'play';   // 'play' | 'won' | 'lost'
 
-  /** Bestes Ziel samt Eintrittsfläche, oder null: freiliegend, und vor der Fläche liegt in gerader Linie nichts mehr
-   *  (clearRay – „ganz außen“). Flächen zur Kamera oder zum Schiff kommen zuerst dran (Wertung), die anderen
-   *  erreicht das Lenkgeschoss außen herum. Die Linie wird nur geprüft, wenn der Kandidat besser wäre. */
-  function findTarget(color, camera, from) {
+  /** Bestes Ziel samt Eintrittsfläche, oder null: Das Schiff (`from`, ohne Angabe die Kamera) sieht die Fläche – sie
+   *  zeigt zu ihm, und auf der geraden Linie liegt nichts (sees: nicht um die Ecke) –, der Spieler sieht sie auch (zeigt
+   *  zur Kamera, frei davor: nie auf die Rückseite), und sie liegt ganz außen (clearRay: kein Tunnel). Was nicht passt,
+   *  muss man zudrehen. Flächen, die direkter zum Schiff zeigen, kommen zuerst dran. Die teuren Linien werden nur
+   *  geprüft, wenn der Kandidat besser wäre. */
+  function findTarget(color, camera, from = camera) {
     let best = null;
     let bestScore = -Infinity;
-    const points = from ? [camera, from] : [camera];
     for (const v of asteroid.targets.get(color) ?? []) {
       if (!v.alive || v.reserved) continue;
       const bonus = aimRng() * AIM_JITTER + (v.crystal ? CRYSTAL_PRIORITY : 0);
-      for (const n of openNormals(asteroid, v))
-        for (const p of points) {
-          const dx = p.x - v.x;
-          const dy = p.y - v.y;
-          const dz = p.z - v.z;
-          const dot = (n[0] * dx + n[1] * dy + n[2] * dz) / (Math.hypot(dx, dy, dz) || 1);
-          // zur Kamera/zum Schiff gewandt: Vorrang; sonst hinten anstellen
-          const score = (dot >= FACING ? dot : dot - 2) + bonus;
-          if (score <= bestScore || !clearRay(asteroid, v, n)) continue;
-          bestScore = score;
-          best = { voxel: v, normal: n };
-        }
+      const dx = from.x - v.x;
+      const dy = from.y - v.y;
+      const dz = from.z - v.z;
+      const length = Math.hypot(dx, dy, dz) || 1;
+      const cx = camera.x - v.x;
+      const cy = camera.y - v.y;
+      const cz = camera.z - v.z;
+      const cameraLength = Math.hypot(cx, cy, cz) || 1;
+      for (const n of openNormals(asteroid, v)) {
+        const dot = (n[0] * dx + n[1] * dy + n[2] * dz) / length;
+        if (dot < SEE_MIN || (n[0] * cx + n[1] * cy + n[2] * cz) / cameraLength < CAMERA_MIN) continue;
+        const score = dot + bonus;
+        if (score <= bestScore || !clearRay(asteroid, v, n) || !sees(asteroid, v, n, from, SEE_MIN)) continue;
+        bestScore = score;
+        best = { voxel: v, normal: n };
+      }
     }
     return best;
   }
@@ -209,6 +224,10 @@ export function createGame(level, { seed = level.seed } = {}) {
     belt,
     queue,
     beltSpeed,
+    /** aktuelles Bandtempo (Plätze/s) inkl. Leerlauf-Beschleunigung */
+    get speed() {
+      return beltSpeed * (1 + (BELT_RUSH - 1) * rush);
+    },
     slots,
     get state() {
       return state;
@@ -253,7 +272,8 @@ export function createGame(level, { seed = level.seed } = {}) {
       const index = belt.findIndex(item => item.ship.id === shipId);
       const [{ ship }] = belt.splice(index, 1);
       // doomed: seine Farbe ist schon fertig – es findet nie ein Ziel und blockiert die Plattform für immer
-      slots[slot] = { ship, phase: 'arriving', t: 0, cooldown: 0, inFlight: 0, idle: 0, doomed: colorGone(ship.color), misfire: false };
+      slots[slot] = { ship, phase: 'arriving', t: 0, cooldown: 0, inFlight: 0, idle: 0, doomed: colorGone(ship.color), misfire: false, blocked: false, aiming: false };
+      launched = true;
       return [{ type: 'launch', ship, slot }];
     },
 
@@ -368,10 +388,13 @@ export function createGame(level, { seed = level.seed } = {}) {
       if (state !== 'play') return events;
 
       // Förderband: läuft nach links; rechts kommen neue Schiffe aus der Luke (je ein Platz Abstand), links fallen sie
+      const idle = launched && slots.every(e => !e);
+      rush += ((idle ? 1 : 0) - rush) * (1 - Math.exp(-BELT_RUSH_RATE * dt));
+      const speed = beltSpeed * (1 + (BELT_RUSH - 1) * rush);
       const sparse = belt.filter(item => item.pos <= BELT_LENGTH - 0.5).length < BELT_MIN && slots.some(e => !e);
       for (let k = 0; k < belt.length; k++) {
         const item = belt[k];
-        item.pos -= beltSpeed * dt;
+        item.pos -= speed * dt;
         // Stauband (nur wenn wenig auf dem Band liegt): hinter einer Lücke schnell aufrutschen, nie näher als ein Platz
         // an den Vordermann; der vorderste fährt im Bandtempo
         if (k === 0 || !sparse) continue;
@@ -405,16 +428,22 @@ export function createGame(level, { seed = level.seed } = {}) {
         } else if (entry.phase === 'ready') {
           entry.cooldown -= dt;
           entry.idle += dt;   // seit dem letzten Schuss (wird beim Schießen zurückgesetzt)
-          // Fehlstart (für die Sterne): steht mit Munition blockiert da – einmal je Schiff gezählt
-          if (!entry.misfire && entry.idle >= BLOCKED_AFTER && entry.ship.ammo > 0) {
+          // Fehlstart (für die Sterne): steht mit Munition blockiert da – seine Farbe liegt nirgends ganz außen, Drehen
+          // hilft also nicht – einmal je Schiff gezählt. Sieht es nur gerade nichts, wartet es (`aiming`: zudrehen!)
+          const stalled = entry.idle >= BLOCKED_AFTER && entry.ship.ammo > 0;
+          if (!entry.misfire && stalled && entry.blocked) {
             entry.misfire = true;
             stats.misfires++;
             events.push({ type: 'blocked', ship: entry.ship, slot });
           }
+          entry.aiming = stalled && !entry.blocked;
           if (entry.ship.ammo > 0 && entry.cooldown <= 0) {
             const target = findTarget(entry.ship.color, camera, origin?.(slot));
-            if (!target) entry.cooldown = TIMING.search;
-            else {
+            if (!target) {
+              entry.cooldown = TIMING.search;
+              entry.blocked = entry.doomed || !hasAnyTarget(entry.ship.color);
+            } else {
+              entry.blocked = false;
               const { voxel, normal } = target;
               voxel.reserved = true;
               entry.ship.ammo--;

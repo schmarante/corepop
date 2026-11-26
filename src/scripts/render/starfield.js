@@ -10,7 +10,10 @@
 //   Magenta, Violett und Türkis hinter den Sternen, die Sterne glühen farbig, ziehen Leuchtspuren und fliegen etwas
 //   schneller. Blendet in ~1,5 s weich ein und aus (`mood` 0 … 1). Dabei blendet jeder zweite Stern aus – im Boss nur
 //   halb so viele Sterne (Leuchtspuren + Schein kosten je Stern deutlich mehr).
+// - Im Takt der Musik (audio/beat.js): Auf jede Kick werden die Sterne kurz größer und heller und machen einen kleinen
+//   Satz nach vorn; im Boss stärker, dazu flammt der Nebel auf. Nicht bei „Bewegung reduzieren“.
 import { startFrameLoop, BACKGROUND_FPS } from './frame-loop.js';
+import { beatLevel } from '../audio/beat.js';
 
 const COUNT = 800;
 const SPEED = 0.06;          // Annäherung pro Sekunde (Tiefe 1 → 0)
@@ -31,6 +34,11 @@ const NEBULA_ALPHA = 0.32;
 const GLOW = ['#ff6be8', '#9b7bff', '#6be4ff', '#ffd36b'];   // Sternfarben im Boss-Level
 const BOSS_SPEED = 0.7;      // so viel schneller fliegen die Sterne bei voller Stimmung
 const TRAIL = 0.9;           // Länge der Leuchtspur (Anteil der Bewegung über diese Zeit in s)
+// Takt: Anteil, um den ein Stern auf einer Kick größer bzw. heller wird, Satz nach vorn – je normal / Boss
+const PULSE_SIZE = [0.3, 0.75];
+const PULSE_LIGHT = [0.25, 0.5];
+const PULSE_PUSH = [1.2, 3];
+const PULSE_NEBULA = 0.9;    // Boss: Nebel flammt auf der Kick um so viel auf
 
 export function startStarfield(canvas) {
   const ctx = canvas.getContext('2d');
@@ -40,6 +48,8 @@ export function startStarfield(canvas) {
   let h = 0;
   let dpr = 1;
   let mood = 0;   // Boss-Stimmung 0 … 1
+  let pulse = 0;  // Takt der Musik 0 … ~1,6
+  const mix = ([calm, boss]) => calm + (boss - calm) * mood;
   let time = Math.random() * 100;
   const bossWanted = () => document.documentElement.dataset.boss === '1';
   const stars = Array.from({ length: COUNT }, () => spawn(0.05 + Math.random() * 0.95));
@@ -90,8 +100,9 @@ export function startStarfield(canvas) {
       const r = base * n.size * (0.85 + 0.15 * Math.sin(time * 0.37 + n.phase));
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       const [cr, cg, cb] = n.color;
-      g.addColorStop(0, `rgba(${cr},${cg},${cb},${NEBULA_ALPHA * mood})`);
-      g.addColorStop(0.45, `rgba(${cr},${cg},${cb},${NEBULA_ALPHA * 0.45 * mood})`);
+      const a = NEBULA_ALPHA * mood * (1 + PULSE_NEBULA * pulse);
+      g.addColorStop(0, `rgba(${cr},${cg},${cb},${a})`);
+      g.addColorStop(0.45, `rgba(${cr},${cg},${cb},${a * 0.45})`);
       g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
@@ -103,6 +114,8 @@ export function startStarfield(canvas) {
     ctx.globalCompositeOperation = 'lighter';   // Licht addiert sich (Nebel, Leuchtspuren, Sterne)
     if (mood > 0.01) drawNebula();
     const scale = Math.max(w, h) * 0.5;
+    const grow = 1 + mix(PULSE_SIZE) * pulse;
+    const shine = 1 + mix(PULSE_LIGHT) * pulse;
     for (let k = 0; k < stars.length; k++) {
       const s = stars[k];
       // Boss: jeder zweite Stern blendet mit der Stimmung aus (und wird dann gar nicht gezeichnet)
@@ -111,9 +124,9 @@ export function startStarfield(canvas) {
       const [px, py] = project(s, scale);
       const near = 1 - Math.min(1, Math.max(0, s.z));   // 0 hinten … 1 ganz nah (dahinter: Spur läuft noch aus)
       const fadeIn = Math.min(1, (s.born - s.z) / FADE_IN);
-      const alpha = Math.min(1, (0.2 + near * 0.8) * s.light * fadeIn) * thin;
+      const alpha = Math.min(1, (0.2 + near * 0.8) * s.light * fadeIn * shine) * thin;
       if (alpha <= 0.01) continue;
-      const size = s.size * (0.7 + near * 1.5);
+      const size = s.size * (0.7 + near * 1.5) * grow;
       ctx.globalAlpha = alpha;
       // Boss: Stern glüht farbig und zieht eine Leuchtspur zur Mitte hin (dorthin, wo er herkommt)
       if (mood > 0.01) {
@@ -157,12 +170,13 @@ export function startStarfield(canvas) {
   startFrameLoop(dt => {
     time += dt;
     mood += ((bossWanted() ? 1 : 0) - mood) * (1 - Math.exp(-MOOD_RATE * dt));
+    pulse = beatLevel();
     const scale = Math.max(w, h) * 0.5;
     const margin = 20;   // px außerhalb des Bildes, bevor ein Stern ersetzt wird
     const outside = ([px, py]) => px < -margin || px > w + margin || py < -margin || py > h + margin;
     const tail = { x: 0, y: 0, z: 0 };
     for (const s of stars) {
-      s.z -= SPEED * dt * (0.6 + (1 - Math.min(1, s.z))) * (1 + BOSS_SPEED * mood);   // nahe Sterne etwas schneller
+      s.z -= SPEED * dt * (0.6 + (1 - Math.min(1, s.z))) * (1 + BOSS_SPEED * mood + mix(PULSE_PUSH) * pulse);   // nahe Sterne etwas schneller
       // ersetzt wird erst, wenn auch das Ende der Leuchtspur draußen ist – sonst risse die Spur mitten im Bild ab
       // (der Kopf bleibt dafür nah an der Kamera stehen: project begrenzt die Tiefe)
       tail.x = s.x;

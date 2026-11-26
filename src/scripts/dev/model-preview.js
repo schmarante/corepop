@@ -16,7 +16,7 @@ export function startModelPreview(canvas, level) {
     view.setY(0);
   }
   show(false);
-  attachDragRotate(canvas, radians => view.rotate(radians));
+  attachDragRotate(canvas, (x, y) => view.drag(x, y), { onFling: (x, y) => view.fling(x, y), onHold: held => view.hold(held) });
   stage.run(dt => {
     if (spinning) view.rotate((level.spin ?? 0.3) * dt);
     view.update(dt);

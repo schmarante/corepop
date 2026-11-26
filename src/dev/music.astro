@@ -1,13 +1,13 @@
 ---
 // Dev-Seite: Musikstücke vorhören (audio/music.js) – live gerendert oder aus den fertigen Dateien (public/audio/),
-// Renderzeit und Spitzenpegel anzeigen, als WAV exportieren (→ scripts/encode-music.sh → public/audio/*.mp3). Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs →
+// Renderzeit und Spitzenpegel anzeigen, als WAV exportieren (→ scripts/encode-music.sh → public/audio/<name>-v<MUSIC_VERSION>.mp3). Nur im Dev-Server und in Builds mit PUBLIC_DEBUG=true (astro.config.mjs →
 // devPages). Bewusst nur Deutsch.
 import '../styles/global.css';
 import Starfield from '../components/Starfield.astro';
 import Logo from '../components/Logo.astro';
-import { SONGS, loopLength } from '../scripts/audio/music.js';
+import { SONGS, loopLength, barsOf } from '../scripts/audio/music.js';
 
-const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, bars: song.bars, seconds: loopLength(song).toFixed(1) }));
+const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, bars: barsOf(song), seconds: loopLength(song).toFixed(1) }));
 ---
 
 <!doctype html>
@@ -25,7 +25,7 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         <Logo class="text-5xl" />
         <h1 class="text-2xl font-extrabold">Musik <span class="text-base font-bold text-muted">· Vorhören</span></h1>
         <p class="text-sm text-muted">„Live gerendert“ rechnet die Synths im Browser (dauert ein paar Sekunden) – so klingt die nächste Fassung. „Dateien“ spielt, was im Spiel läuft (public/audio/).</p>
-        <p class="text-sm text-muted">Neue Fassung veröffentlichen: „Alle exportieren“ (lädt WAVs herunter) → <code>scripts/encode-music.sh ~/Downloads</code> → <code>MUSIC_VERSION</code> in music.js erhöhen.</p>
+        <p class="text-sm text-muted">Neue Fassung veröffentlichen: <code>MUSIC_VERSION</code> in music.js erhöhen → „Alle exportieren“ → <code>scripts/encode-music.sh ~/Downloads</code> (Version steckt im Dateinamen).</p>
       </header>
       <ul class="flex flex-col gap-3">
         {songs.map(song => (
@@ -48,13 +48,11 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         <label class="flex items-center gap-2 text-sm">Quelle
           <select data-source class="rounded bg-white/10 px-2 py-1"><option value="render">live gerendert</option><option value="file">Dateien</option></select>
         </label>
-        <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked data-epic /> epische Schicht (Chor, Ostinato, Impacts, Swells, Hörner)</label>
       </div>
-      <p class="text-xs text-muted">Einzelne Teile abschalten: <code>?off=choir,ostinato,hits,swells,horns</code></p>
     </main>
     <script>
       import * as Tone from 'tone';
-      import { createMusic, renderForExport, SONGS, MUSIC_VERSION } from '../scripts/audio/music.js';
+      import { createMusic, renderForExport, SONGS, musicFile } from '../scripts/audio/music.js';
 
       /** AudioBuffer → WAV (16 Bit PCM) */
       function toWav(buffer: AudioBuffer) {
@@ -104,19 +102,6 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         info.textContent = `${id}.wav exportiert`;
       }
 
-      // epische Schicht an/aus (A/B-Vergleich) bzw. einzelne Teile per ?off= – ändert die Stückdaten, danach neu rendern
-      const EPIC = ['choir', 'ostinato', 'hits', 'swells', 'horns'];
-      const saved = Object.fromEntries(Object.entries(SONGS).map(([id, song]) => [id, Object.fromEntries(EPIC.map(k => [k, song[k]]))]));
-      const off = (new URLSearchParams(location.search).get('off') ?? '').split(',').filter(Boolean);
-      const applyEpic = (on: boolean) => {
-        for (const [id, song] of Object.entries(SONGS))
-          for (const k of EPIC) {
-            if (on && !off.includes(k)) song[k] = saved[id][k];
-            else delete song[k];
-          }
-      };
-      applyEpic(true);
-
       // wie im Spiel (audio/sound.js): Musik-Bus → Limiter → Ausgang
       let music: ReturnType<typeof createMusic> | null = null;
       let master: any = null;
@@ -126,7 +111,7 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         master ??= new Tone.Limiter(-1).toDestination();
         const fromFiles = document.querySelector<HTMLSelectElement>('[data-source]')!.value === 'file';
         const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-        music = createMusic(Tone, new Tone.Gain(0.65).connect(master), fromFiles ? { url: (name: string) => `${base}/audio/${name}.mp3?v=${MUSIC_VERSION}` } : {});
+        music = createMusic(Tone, new Tone.Gain(0.65).connect(master), fromFiles ? { url: (name: string) => `${base}/${musicFile(name)}` } : {});
         return music;
       };
       const rows = [...document.querySelectorAll<HTMLElement>('[data-song]')];
@@ -158,10 +143,6 @@ const songs = Object.entries(SONGS).map(([id, song]) => ({ id, bpm: song.bpm, ba
         });
       };
       document.querySelector('[data-source]')!.addEventListener('change', reset);
-      document.querySelector<HTMLInputElement>('[data-epic]')!.addEventListener('change', e => {
-        reset();
-        applyEpic((e.target as HTMLInputElement).checked);
-      });
       document.querySelector('[data-stop]')!.addEventListener('click', () => {
         music?.play(null);
         rows.forEach(r => r.classList.remove('ring-2'));

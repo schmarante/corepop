@@ -10,10 +10,11 @@
 // - Ein Klangfehler darf das Spiel nie stören: alles in try/catch.
 import { soundSettings } from '../store/sound.js';
 import { createSfx } from './sfx.js';
-import { createMusic, MUSIC_VERSION } from './music.js';
+import { createMusic, musicFile } from './music.js';
+import { setBeatSource } from './beat.js';
 
 /** fertige Musikdatei je Stück (public/audio/, erzeugt über /dev/musik/ + scripts/encode-music.sh) */
-const musicUrl = name => `${import.meta.env.BASE_URL.replace(/\/$/, '')}/audio/${name}.mp3?v=${MUSIC_VERSION}`;
+const musicUrl = name => `${import.meta.env.BASE_URL.replace(/\/$/, '')}/${musicFile(name)}`;
 
 const LATE = 400;          // ms – ältere Effekte aus der Ladezeit fallen weg
 const SFX_LEVEL = 0.9;
@@ -46,6 +47,7 @@ function createSound() {
     const sfxBus = new Tone.Gain(settings.sfx ? SFX_LEVEL : 0).connect(master);
     const musicBus = new Tone.Gain(settings.music ? MUSIC_LEVEL : 0).connect(master);
     ready = { sfx: createSfx(Tone, sfxBus), music: createMusic(Tone, musicBus, { url: musicUrl }), sfxBus, musicBus };
+    setBeatSource(() => (settings.music && ctx?.state === 'running' ? ready.music.beat() : 0));   // Sternenflug im Takt
     if (settings.music && song) ready.music.play(song);
     const now = performance.now();
     for (const [name, args, at] of pending.splice(0)) if (now - at < LATE) play(name, ...args);

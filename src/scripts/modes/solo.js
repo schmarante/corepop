@@ -77,9 +77,10 @@ export function startSolo(root, locale) {
     onTap: hit => ('recall' in hit ? recall(hit.recall) : launch(hit.id, hit.slot)),
     visibleIds: () => (game ? views.belt.visibleIds(game.belt) : []),
   });
-  const detachDrag = attachDragRotate(canvas, radians => views?.asteroid.rotate(radians), {
+  const detachDrag = attachDragRotate(canvas, (x, y) => views?.asteroid.drag(x, y), {
     accept: e => !pickShip(e.clientX, e.clientY),
-    onFling: velocity => views?.asteroid.fling(velocity),   // loslassen: dreht nach und läuft aus
+    onFling: (x, y) => views?.asteroid.fling(x, y),   // loslassen: dreht nach und läuft aus
+    onHold: held => views?.asteroid.hold(held),        // festhalten: kein Taumeln; danach taumelt sie wieder
   });
   const options = document.querySelector('[data-options]');   // Optionen offen → Spiel pausiert
   const hint = createHint($('[data-hint]'));
@@ -371,7 +372,7 @@ export function startSolo(root, locale) {
     stage.glitch(views.asteroid.glitchState());   // Boss: Farbgeister als Pixel-Shader (stage.js)
     handle(game.step(dt, views.asteroid.cameraInGrid(stage.camera), shipInGrid));
     views.hangar.update(game.slots, dt);
-    views.belt.update(game.belt, game.queue.length, game.state === 'play' ? game.beltSpeed : 0, dt, {
+    views.belt.update(game.belt, game.queue.length, game.state === 'play' ? game.speed : 0, dt, {
       finished: ship => !game.asteroid.aliveByColor.get(ship.color),   // Farbe fertig: grau (Falle)
     });
     views.effects.update(dt, game.shots, (shot, target, normal) => {

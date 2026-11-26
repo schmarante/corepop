@@ -1,7 +1,7 @@
 // Hangar: ein Hangarboden (Deck) mit Landeplattformen, von denen alle Schiffe aus schießen. Liest jedes Bild den
 // Zustand der Slots aus der Spiellogik (Phase + Zeit) und animiert daraus Anflug, Schweben, Zielen, Rückstoß und
-// Abflug. Freie Plattformen leuchten, belegte dimmen ab – weich überblendet. Ein blockiertes Schiff (findet kein Ziel
-// ganz außen, core/game.js → BLOCKED_AFTER) kippt zur Seite, das Triebwerk geht aus, die Munitionszahl wird rot und
+// Abflug. Freie Plattformen leuchten, belegte dimmen ab – weich überblendet. Ein blockiertes Schiff (seine Farbe liegt
+// nirgends ganz außen, core/game.js → BLOCKED_AFTER; sieht es sie nur gerade nicht, muss man die Figur ihm zudrehen) kippt zur Seite, das Triebwerk geht aus, die Munitionszahl wird rot und
 // ein größerer Ring um die Plattform pulsiert rot: Der Hangar ist der Engpass, alle Plattformen blockiert = verloren.
 // Übergänge: Deck wächst beim Laden hinein und schrumpft beim Levelwechsel weg (vanish), Munitionsanzeigen blenden.
 import * as THREE from 'three';
@@ -46,7 +46,8 @@ const BLOCKED_RING = 0.35;    // so viel größer wird der Ring einer blockierte
 /** Anteil für bildratenunabhängiges Annähern (statt fester Faktoren pro Bild) */
 const approach = (rate, dt) => 1 - Math.exp(-rate * dt);
 /** Schiff steht schussbereit mit Munition da, findet aber schon länger kein Ziel */
-const isBlocked = entry => !!entry && entry.phase === 'ready' && entry.ship.ammo > 0 && entry.idle >= BLOCKED_AFTER;
+// blockiert = seine Farbe liegt nirgends ganz außen (Drehen hilft nicht); sieht es nur gerade nichts, wartet es (aiming)
+const isBlocked = entry => !!entry && entry.phase === 'ready' && entry.ship.ammo > 0 && entry.idle >= BLOCKED_AFTER && entry.blocked;
 
 export function createHangarView(scene, slotCount) {
   const root = new THREE.Group();

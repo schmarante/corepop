@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LEVELS, levelIndex } from '../src/scripts/core/levels.js';
 import { createGame, TIMING, FACING, BLOCKED_AFTER, STAR_TWO, STAR_THREE, BELT_LENGTH, BELT_CATCHUP, BELT_MIN } from '../src/scripts/core/game.js';
-import { BLAST, blastPower, blastReach, clearRay, createAsteroid, facing, hittable, removeVoxel, voxelKey } from '../src/scripts/core/asteroid.js';
+import { BLAST, blastPower, blastReach, clearRay, createAsteroid, facing, hittable, removeVoxel, sees, voxelKey } from '../src/scripts/core/asteroid.js';
 import { createRng } from '../src/scripts/core/rng.js';
 import { MODELS } from '../src/scripts/core/models/index.js';
 import { MIN_AMMO, DEFAULT_RESERVE } from '../src/scripts/core/fleet.js';
@@ -242,6 +242,26 @@ describe('Zielregel', () => {
     expect(hittable(body, at(-1, 2, 0))).toBe(false);
     expect(hittable(body, at(3, 0, 0))).toBe(true);    // Außenseite
     expect(hittable(body, at(1, 3, 0))).toBe(true);    // Oberkante neben dem Schacht: nach oben frei
+  });
+
+  it('ein Schiff sieht nur Flächen, die zu ihm zeigen und frei vor ihm liegen – nicht um die Ecke', () => {
+    // Würfel 5×5×5, Schiff weit vorn (+z)
+    const grid = new Map();
+    for (let x = -2; x <= 2; x++)
+      for (let y = -2; y <= 2; y++)
+        for (let z = -2; z <= 2; z++) grid.set(voxelKey(x, y, z), { x, y, z });
+    const body = { grid, bounds: 2 };
+    const at = (x, y, z) => grid.get(voxelKey(x, y, z));
+    const ship = { x: 0, y: 0, z: 30 };
+    expect(sees(body, at(0, 0, 2), [0, 0, 1], ship)).toBe(true);     // Vorderseite
+    expect(sees(body, at(0, 0, -2), [0, 0, -1], ship)).toBe(false);  // Rückseite: zeigt weg
+    expect(sees(body, at(2, 0, 0), [1, 0, 0], ship, 0.1)).toBe(false);   // Seite: nur streifend
+    // Schiff schräg vorn rechts: sieht die rechte Seite, aber nicht deren hinteren Rand durch den Würfel hindurch
+    const side = { x: 30, y: 0, z: 10 };
+    expect(sees(body, at(2, 0, 2), [1, 0, 0], side)).toBe(true);
+    expect(sees(body, at(-2, 0, 2), [0, 0, 1], side)).toBe(true);    // Vorderseite links: schräg, aber frei
+    grid.set(voxelKey(0, 0, 3), { x: 0, y: 0, z: 3 });               // Buckel vorn …
+    expect(sees(body, at(-1, 0, 2), [0, 0, 1], { x: 30, y: 0, z: 3.5 })).toBe(false);   // … verdeckt dahinter
   });
 });
 

@@ -1,5 +1,7 @@
 // Darstellung des Voxel-Körpers: ein InstancedMesh aus abgerundeten, glänzenden Candy-Würfeln.
-// Aufbau: tilt (Neigung + Taumeln + Schweben, „fliegt durchs All“) → spin (Drehung um Y: Eigendrehung + Ziehen).
+// Aufbau: tilt (Neigung + Taumeln + Schweben, „fliegt durchs All“) → grab (Ziehen: freie Drehung in alle Richtungen,
+// mit Schwung) → spin (Eigendrehung um Y). Solange man die Figur festhält oder sie vom Wischen noch nachdreht, stehen
+// Taumeln und Eigendrehung still; danach setzen sie weich wieder ein (`calm`).
 // Das Taumeln überlagert langsame Schwingungen mit krummen Frequenzen – es wiederholt sich nie sichtbar. Sichtbarkeit,
 // Schussbahn und Bruchstücke rechnen über die Welt-Matrix automatisch mit.
 //
@@ -42,6 +44,10 @@ const KICK_WOBBLE = 2.2;    // rad/s Kippschub je Einheit Drehmoment
 const WOBBLE_SPRING = 14;   // 1/s² – wie stark das Kippen zurückfedert
 const WOBBLE_DAMPING = 3.2; // 1/s – wie schnell das Nachwippen ausläuft
 const FLING_MAX = 12;       // rad/s – mehr Schwung gibt ein Wisch nie
+const CALM_RATE = 1.4;      // 1/s – so weich setzen Taumeln und Eigendrehung nach dem Loslassen wieder ein
+const CALM_BELOW = 0.35;    // rad/s – erst wenn der Schwung so weit ausgelaufen ist
+const AXIS_UP = new THREE.Vector3(0, 1, 0);
+const AXIS_RIGHT = new THREE.Vector3(1, 0, 0);
 const RECOLOR = 0.45;     // s – Farbwechsel (Special): Aufblitzen und Übergang
 const SHRINK = 0.18;     // s – getroffener Voxel blitzt auf und schrumpft weg
 const FLASH = 0.6;       // Anteil Weiß beim Aufblitzen
@@ -84,8 +90,10 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   const size = Math.min(1, 4 / level.radius);   // Voxelgröße: größere Körper bleiben gleich groß im Bild
   const tilt = new THREE.Group();
   tilt.rotation.x = TILT;
+  const grab = new THREE.Group();
+  tilt.add(grab);
   const spin = new THREE.Group();
-  tilt.add(spin);
+  grab.add(spin);
   tilt.scale.setScalar(0.001);
   tilt.name = 'Figur';   // Namen nur für den Dev-Profiler
   scene.add(tilt);
@@ -187,7 +195,21 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
   }
 
   const radius = Math.max(...asteroid.voxels.map(v => Math.hypot(v.x, v.y, v.z)));   // in Voxeln
-  let flingVelocity = 0;   // rad/s – Schwung nach dem Wischen (und Rückstoß einer Explosion um die Hochachse)
+  const omega = new THREE.Vector3();   // rad/s um Weltachsen – Schwung nach dem Wischen (und Rückstoß einer Explosion)
+  let held = false;        // Finger liegt auf der Figur
+  let calm = 1;            // 0 … 1: Anteil von Taumeln und Eigendrehung (0 beim Festhalten, danach weich zurück)
+  let tumbleTime = Math.random() * 100;   // Zeit des Taumelns – steht still, solange man dreht
+  const turnAxis = new THREE.Vector3();
+  const turnQuat = new THREE.Quaternion();
+  const tiltQuat = new THREE.Quaternion();
+  /** um eine Weltachse drehen (über grab – Neigung und Taumeln darüber herausgerechnet) */
+  const turnWorld = (axis, angle) => {
+    if (!angle) return;
+    tilt.updateMatrixWorld(true);
+    tilt.getWorldQuaternion(tiltQuat).invert();
+    turnAxis.copy(axis).applyQuaternion(tiltQuat).normalize();
+    grab.quaternion.premultiply(turnQuat.setFromAxisAngle(turnAxis, angle));
+  };
   /** Rückstoß-Wippen nach einer Explosion: Kippwinkel um x/z (rad) und ihre Geschwindigkeit – federt zurück */
   const wobble = { x: 0, z: 0, vx: 0, vz: 0 };
   const kickR = new THREE.Vector3();
@@ -244,8 +266,19 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
     setY(y) {
       baseY = y;
     },
+    /** Eigendrehung um die Hochachse – ruht, solange man dreht, und setzt danach weich wieder ein */
     rotate(radians) {
-      spin.rotation.y += radians;
+      spin.rotation.y += radians * calm;
+    },
+    /** Ziehen: x um die Hochachse (nach rechts positiv), y um die Querachse (nach unten positiv), rad */
+    drag(x, y) {
+      turnWorld(AXIS_UP, x);
+      turnWorld(AXIS_RIGHT, y);
+    },
+    /** Finger auf der Figur: Taumeln und Eigendrehung halten sofort an */
+    hold(on) {
+      held = on;
+      if (on) calm = 0;
     },
     /**
      * Rückstoß einer Explosion: Der Sprengpunkt (Welt) bekommt einen Stoß von der Kamera weg (die Würfel fliegen
@@ -258,13 +291,13 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
       kickR.copy(worldPoint).sub(centerWorld).divideScalar(Math.max(0.001, (radius + 0.5) * size));   // Hebel, ~ −1 … 1
       kickF.copy(worldPoint).sub(cameraPosition).normalize().multiplyScalar(strength);
       kickT.crossVectors(kickR, kickF);
-      flingVelocity = Math.max(-FLING_MAX, Math.min(FLING_MAX, flingVelocity + kickT.y * KICK_SPIN));
+      omega.y = Math.max(-FLING_MAX, Math.min(FLING_MAX, omega.y + kickT.y * KICK_SPIN));
       wobble.vx += kickT.x * KICK_WOBBLE;
       wobble.vz += kickT.z * KICK_WOBBLE;
     },
-    /** Schwung nach dem Wischen (rad/s): dreht weiter und läuft weich aus; 0 = sofort anhalten (angefasst) */
-    fling(radiansPerSecond) {
-      flingVelocity = Math.max(-FLING_MAX, Math.min(FLING_MAX, radiansPerSecond));
+    /** Schwung nach dem Wischen (rad/s um Hoch- bzw. Querachse wie drag): dreht weiter und läuft weich aus; 0 = anhalten */
+    fling(x, y = 0) {
+      omega.set(y, x, 0).clampLength(0, FLING_MAX);
     },
     /** true, sobald das Herausschrumpfen fertig ist (dann dispose) */
     get gone() {
@@ -276,11 +309,16 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
     update(dt) {
       time += dt;
       // Schwung vom Wischen: weiterdrehen, bildratenunabhängig abbremsen
-      if (flingVelocity) {
-        spin.rotation.y += flingVelocity * dt;
-        flingVelocity *= Math.exp(-FLING_FRICTION * dt);
-        if (Math.abs(flingVelocity) < 0.02) flingVelocity = 0;
+      const speed = omega.length();
+      if (speed) {
+        turnWorld(turnAxis.copy(omega).divideScalar(speed).clone(), speed * dt);
+        omega.multiplyScalar(Math.exp(-FLING_FRICTION * dt));
+        if (omega.length() < 0.02) omega.set(0, 0, 0);
       }
+      // nach dem Loslassen (und wenn der Schwung fast aus ist) setzen Taumeln und Eigendrehung weich wieder ein
+      if (!held && omega.length() < CALM_BELOW) calm += (1 - calm) * (1 - Math.exp(-CALM_RATE * dt));
+      else if (!held) calm *= Math.exp(-CALM_RATE * 3 * dt);
+      tumbleTime += dt * calm;
       ao.update(dt);
       appear += dt;
       const grow = vanish === null ? easeOutBack(appear / APPEAR) : 1 - easeInCubic((vanish += dt) / VANISH);
@@ -290,8 +328,8 @@ export function createAsteroidView(scene, asteroid, level, { glitch = false } = 
         wobble[v] += (-WOBBLE_SPRING * wobble[a] - WOBBLE_DAMPING * wobble[v]) * dt;
         wobble[a] += wobble[v] * dt;
       }
-      tilt.rotation.set(TILT + waves(TUMBLE_X, time) + wobble.x, 0, waves(TUMBLE_Z, time) + wobble.z);
-      tilt.position.set(waves(SWAY_X, time), baseY + waves(SWAY_Y, time), 0);
+      tilt.rotation.set(TILT + waves(TUMBLE_X, tumbleTime) + wobble.x, 0, waves(TUMBLE_Z, tumbleTime) + wobble.z);
+      tilt.position.set(waves(SWAY_X, tumbleTime), baseY + waves(SWAY_Y, tumbleTime), 0);
       // Glitch: wenige ruckartige Schritte (je Schritt neue Versätze), dazwischen ruhig
       if (glitchOn && vanish === null) {
         if (glitchT < 0 && (nextGlitch -= dt) <= 0) glitchT = 0;
